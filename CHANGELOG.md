@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.3 — 2026-10-31
+
+Mermaid diagrams and GFM tables in the reader.
+
+- Fenced `mermaid` blocks now render to SVG through a bundled Mermaid 12.2.0 runtime, including Gantt timelines, `xychart-beta` charts and the usual flowchart/sequence/class/state/ER diagrams. The runtime is lazy-loaded from the plugin host, never from a CDN, and runs with Mermaid's strict security level.
+- GitHub-style pipe tables render as real tables with alignment support, instead of a flattened paragraph.
+- Wide Gantt timelines scroll horizontally inside their figure and show a short scroll hint; xycharts size to their content so axis labels are not clipped.
+- The Mermaid runtime is vendored under `vendor/` with its MIT license.
+
 ## 0.2.2 — 2026-10-30
 
 Marquee selection, a first-screen-aware desktop, and rendered charts.

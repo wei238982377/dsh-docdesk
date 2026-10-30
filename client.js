@@ -10,6 +10,7 @@ window.__ModuleLoader__.load({
     const API_LIST = '/api/dsh-docdesk/list'
     const API_READ = '/api/dsh-docdesk/read'
     const API_RESOLVE = '/api/dsh-docdesk/resolve'
+    const MERMAID_URL = '/api/dsh-docdesk/mermaid.js'
     const STORAGE_KEY = 'dsh-docdesk.library.v2'
     const ICON_W = 88
     const ICON_H = 104
@@ -68,6 +69,10 @@ window.__ModuleLoader__.load({
       'chart.empty': '图表没有可显示的数据',
       'chart.aria': '图表',
       'chart.other': '其他',
+      'mermaid.loading': '正在渲染 Mermaid 图…',
+      'mermaid.error': 'Mermaid 图渲染失败，已显示原始代码。',
+      'mermaid.source': '查看 Mermaid 源码',
+      'mermaid.scrollHint': '时间轴较长，可横向滚动查看完整甘特图',
       'selection.count': '已选 {count} 项',
       'action.removeSelected': '从资料区移除 {count} 项',
       'action.deselect': '取消选择',
@@ -154,6 +159,10 @@ window.__ModuleLoader__.load({
       'chart.empty': 'The chart has no data to show',
       'chart.aria': 'Chart',
       'chart.other': 'Other',
+      'mermaid.loading': 'Rendering Mermaid diagram…',
+      'mermaid.error': 'The Mermaid diagram could not be rendered; the raw code is shown below.',
+      'mermaid.source': 'View Mermaid source',
+      'mermaid.scrollHint': 'The timeline is wide; scroll horizontally to see the full Gantt chart',
       'selection.count': '{count} selected',
       'action.removeSelected': 'Remove {count} from library',
       'action.deselect': 'Deselect',
@@ -711,6 +720,32 @@ window.__ModuleLoader__.load({
       return nodes
     }
 
+    function splitTableRow(text) {
+      return String(text)
+        .trim()
+        .replace(/^\|/u, '')
+        .replace(/\|$/u, '')
+        .split('|')
+        .map((cell) => cell.trim())
+    }
+
+    function isTableSeparator(text) {
+      if (!String(text).includes('|')) return false
+      const cells = splitTableRow(text)
+      return cells.length > 0 && cells.every((cell) => /^:?-{3,}:?$/u.test(cell))
+    }
+
+    function tableAlignments(text) {
+      return splitTableRow(text).map((cell) => {
+        const left = cell.startsWith(':')
+        const right = cell.endsWith(':')
+        if (left && right) return 'center'
+        if (right) return 'right'
+        if (left) return 'left'
+        return undefined
+      })
+    }
+
     function renderMarkdown(source, baseKey) {
       const lines = String(source ?? '').replace(/^\uFEFF/u, '').replace(/\r\n?/g, '\n').split('\n')
       const blocks = []
@@ -737,11 +772,16 @@ window.__ModuleLoader__.load({
           }
           if (index < lines.length) index += 1
           const codeText = code.join('\n')
-          const chart = parseChartBlock(fence[1], codeText)
-          if (chart) {
-            blocks.push(h(ChartBlock, { key: `${prefix}-chart${key++}`, spec: chart }))
+          const language = String(fence[1] || '').toLowerCase()
+          if (language === 'mermaid') {
+            blocks.push(h(MermaidBlock, { key: `${prefix}-mermaid${key++}`, source: codeText }))
           } else {
-            blocks.push(h('pre', { key: `${prefix}-pre${key++}`, className: 'dsd-md-pre' }, h('code', null, codeText)))
+            const chart = parseChartBlock(fence[1], codeText)
+            if (chart) {
+              blocks.push(h(ChartBlock, { key: `${prefix}-chart${key++}`, spec: chart }))
+            } else {
+              blocks.push(h('pre', { key: `${prefix}-pre${key++}`, className: 'dsd-md-pre' }, h('code', null, codeText)))
+            }
           }
           continue
         }
@@ -762,6 +802,60 @@ window.__ModuleLoader__.load({
           flush()
           blocks.push(h('hr', { key: `${prefix}-hr${key++}`, className: 'dsd-md-hr' }))
           index += 1
+          continue
+        }
+        if (line.includes('|') && index + 1 < lines.length && isTableSeparator(lines[index + 1])) {
+          flush()
+          const header = splitTableRow(line)
+          const alignments = tableAlignments(lines[index + 1])
+          const rows = []
+          index += 2
+          while (index < lines.length && lines[index].trim() !== '' && lines[index].includes('|')) {
+            rows.push(splitTableRow(lines[index]))
+            index += 1
+          }
+          blocks.push(
+            h(
+              'div',
+              { key: `${prefix}-table${key++}`, className: 'dsd-md-table-wrap' },
+              h(
+                'table',
+                { className: 'dsd-md-table' },
+                h(
+                  'thead',
+                  null,
+                  h(
+                    'tr',
+                    null,
+                    header.map((cell, column) =>
+                      h(
+                        'th',
+                        { key: `${prefix}-th${column}`, style: alignments[column] ? { textAlign: alignments[column] } : undefined },
+                        renderInline(cell, `${prefix}-th${column}`),
+                      ),
+                    ),
+                  ),
+                ),
+                h(
+                  'tbody',
+                  null,
+                  rows.map((row, rowIndex) =>
+                    h(
+                      'tr',
+                      { key: `${prefix}-tr${rowIndex}` },
+                      header.map((_, column) =>
+                        h(
+                          'td',
+                          { key: `${prefix}-td${rowIndex}-${column}`, style: alignments[column] ? { textAlign: alignments[column] } : undefined },
+                          renderInline(row[column] ?? '', `${prefix}-td${rowIndex}-${column}`),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          )
           continue
         }
         if (/^>\s?/.test(line)) {
@@ -805,6 +899,9 @@ window.__ModuleLoader__.load({
 
     const CHART_PALETTE = ['#7aaaff', '#4fd1c5', '#f6ad55', '#f687b3', '#9f7aea', '#f6e05e', '#68d391', '#fc8181']
     const CHART_TYPES = new Set(['bar', 'line', 'area', 'pie', 'donut'])
+    let mermaidLoader = null
+    let mermaidRenderQueue = Promise.resolve()
+    let mermaidSequence = 0
 
     function parseChartBlock(language, source) {
       const lower = String(language || '').toLowerCase()
@@ -862,6 +959,117 @@ window.__ModuleLoader__.load({
 
     function chartValueLabel(value, unit) {
       return `${formatChartNumber(value)}${unit ? ` ${unit}` : ''}`
+    }
+
+    function loadMermaid() {
+      if (typeof window !== 'undefined' && window.mermaid) return Promise.resolve(window.mermaid)
+      if (mermaidLoader) return mermaidLoader
+      mermaidLoader = new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = MERMAID_URL
+        script.async = true
+        script.dataset.dsdMermaid = 'true'
+        script.onload = () => {
+          if (window.mermaid) resolve(window.mermaid)
+          else reject(new Error('Mermaid global missing'))
+        }
+        script.onerror = () => reject(new Error('Mermaid script failed to load'))
+        document.head.appendChild(script)
+      }).catch((error) => {
+        mermaidLoader = null
+        throw error
+      })
+      return mermaidLoader
+    }
+
+    function mermaidThemeName() {
+      try {
+        const parts = getComputedStyle(document.body).backgroundColor.match(/\d+(?:\.\d+)?/gu)
+        if (parts && parts.length >= 3) {
+          const [red, green, blue] = parts.map(Number)
+          return (red * 299 + green * 587 + blue * 114) / 1000 < 128 ? 'dark' : 'default'
+        }
+      } catch {
+        /* fall through */
+      }
+      return 'dark'
+    }
+
+    function initializeMermaid(mermaid) {
+      if (mermaid.__dsdInitialized) return
+      mermaid.initialize({
+        startOnLoad: false,
+        securityLevel: 'strict',
+        theme: mermaidThemeName(),
+        fontFamily: 'inherit',
+        gantt: {
+          useMaxWidth: false,
+          barHeight: 22,
+          barGap: 6,
+          topPadding: 50,
+          leftPadding: 90,
+          rightPadding: 40,
+          gridLineStartPadding: 35,
+          fontSize: 11,
+          sectionFontSize: 11,
+        },
+        xyChart: { useMaxWidth: true },
+      })
+      mermaid.__dsdInitialized = true
+    }
+
+    function renderMermaidDiagram(mermaid, source) {
+      const id = `dsd-mermaid-${Date.now().toString(36)}-${(mermaidSequence += 1)}`
+      const task = mermaidRenderQueue.then(() => Promise.resolve(mermaid.render(id, source)))
+      mermaidRenderQueue = task.then(
+        () => undefined,
+        () => undefined,
+      )
+      return task
+    }
+
+    function MermaidBlock({ source }) {
+      const hostRef = useRef(null)
+      const [state, setState] = useState({ status: 'loading' })
+      const kind = String(source).trim().split(/\s+/u)[0].toLowerCase()
+      useEffect(() => {
+        let cancelled = false
+        const host = hostRef.current
+        if (!host) return undefined
+        host.innerHTML = ''
+        setState({ status: 'loading' })
+        loadMermaid()
+          .then((mermaid) => {
+            initializeMermaid(mermaid)
+            return renderMermaidDiagram(mermaid, source)
+          })
+          .then((result) => {
+            if (cancelled) return
+            const svg = typeof result === 'string' ? result : result && result.svg
+            if (!svg) throw new Error('Mermaid returned no SVG')
+            host.innerHTML = svg
+            if (result && typeof result.bindFunctions === 'function') result.bindFunctions(host)
+            setState({ status: 'ready' })
+          })
+          .catch((error) => {
+            if (!cancelled) setState({ status: 'error', message: error && error.message ? error.message : String(error) })
+          })
+        return () => {
+          cancelled = true
+          if (host) host.innerHTML = ''
+        }
+      }, [source])
+      return h(
+        'figure',
+        { className: 'dsd-mermaid', 'data-status': state.status, 'data-kind': kind },
+        state.status === 'loading' ? h('div', { className: 'dsd-mermaid-loading' }, t('mermaid.loading')) : null,
+        state.status === 'error' ? h('div', { className: 'dsd-mermaid-error' }, t('mermaid.error')) : null,
+        kind === 'gantt' ? h('div', { className: 'dsd-mermaid-hint' }, t('mermaid.scrollHint')) : null,
+        h('div', { className: 'dsd-mermaid-svg', ref: hostRef }),
+        state.status === 'error'
+          ? h('details', { className: 'dsd-chart-source' }, h('summary', null, t('mermaid.source')), h('pre', null, source))
+          : null,
+      )
     }
 
     function ChartSource({ source }) {
@@ -1118,6 +1326,20 @@ window.__ModuleLoader__.load({
 .dsd-chart-source pre { margin:6px 0 0; padding:8px 10px; border-radius:6px; background:var(--dsw-alias-bg-layer-2,#f0f0f4); overflow:auto; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:11px; line-height:1.5; }
 .dsd-chart-error { padding:10px 12px; border-radius:8px; border:1px dashed var(--dsw-alias-state-warn-primary,#b06a00); color:var(--dsw-alias-state-warn-primary,#b06a00); font-size:12px; line-height:1.6; }
 .dsd-chart-empty { padding:22px 10px; text-align:center; color:var(--dsw-alias-label-secondary,#6b6b76); font-size:12.5px; }
+.dsd-mermaid { margin:1.2em 0 1.5em; padding:8px 10px; border:1px solid var(--dsw-alias-border-l1,#e4e4ea); border-radius:12px; background:color-mix(in srgb, var(--dsw-alias-bg-layer-1,#f6f6f8) 44%, transparent); overflow:hidden; }
+.dsd-mermaid-svg { overflow:auto; }
+.dsd-mermaid[data-kind="gantt"] .dsd-mermaid-svg { max-height:72vh; }
+.dsd-mermaid-hint { padding:2px 4px 6px; color:var(--dsw-alias-label-secondary,#6b6b76); font-size:11px; line-height:1.5; }
+.dsd-mermaid svg { display:block; max-width:none !important; height:auto; }
+.dsd-mermaid-loading { padding:18px 10px; color:var(--dsw-alias-label-secondary,#6b6b76); font-size:12.5px; }
+.dsd-mermaid-error { margin:6px 0 8px; padding:10px 12px; border-radius:8px; border:1px dashed var(--dsw-alias-state-error-primary,#c62f45); color:var(--dsw-alias-state-error-primary,#c62f45); font-size:12px; line-height:1.6; }
+.dsd-md-table-wrap { margin:1.1em 0 1.4em; overflow:auto; border:1px solid var(--dsw-alias-border-l1,#e4e4ea); border-radius:10px; }
+.dsd-md-table { width:100%; border-collapse:collapse; font-size:12.5px; line-height:1.6; }
+.dsd-md-table th, .dsd-md-table td { padding:8px 10px; border-bottom:1px solid var(--dsw-alias-border-l1,#e4e4ea); border-right:1px solid var(--dsw-alias-border-l1,#e4e4ea); vertical-align:top; text-align:left; }
+.dsd-md-table th:last-child, .dsd-md-table td:last-child { border-right:none; }
+.dsd-md-table tbody tr:last-child td { border-bottom:none; }
+.dsd-md-table th { background:color-mix(in srgb, var(--dsw-alias-label-primary,#1b1b1f) 7%, transparent); font-weight:650; white-space:nowrap; }
+.dsd-md-table tbody tr:nth-child(even) td { background:color-mix(in srgb, var(--dsw-alias-label-primary,#1b1b1f) 3%, transparent); }
 .dsd-doc-body a { color:var(--dsw-alias-state-business-primary,#2f6fed); text-decoration:none; }
 .dsd-doc-body a:hover { text-decoration:underline; }
 .dsd-menu { position:fixed; z-index:2000; min-width:196px; max-width:264px; max-height:min(72vh,420px); overflow:auto; padding:5px; border-radius:10px; background:var(--dsw-alias-bg-layer-2,#fff); border:1px solid var(--dsw-alias-border-l1,#e4e4ea); box-shadow:0 14px 36px rgba(0,0,0,.2); animation:dsd-pop .12s ease-out; }

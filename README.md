@@ -1,6 +1,6 @@
 # dsh-docdesk · 资料区
 
-An **add-only** Markdown library for DeepSeek Harness. The library starts empty: you pick the documents that matter from your workspaces, place their icons on a fixed non-overlapping desktop grid, marquee-select several at once, and read them full-screen with browser-style tabs and charts rendered from code blocks.
+An **add-only** Markdown library for DeepSeek Harness. The library starts empty: you pick the documents that matter from your workspaces, place their icons on a fixed non-overlapping desktop grid, marquee-select several at once, and read them full-screen with browser-style tabs, GFM tables, `chart` blocks and Mermaid diagrams rendered inline.
 
 ![Materials panel](docs/screenshots/panel.png)
 
@@ -21,6 +21,7 @@ The plugin never moves, renames or deletes anything on disk.
 - **A fixed, non-overlapping desktop grid.** Icons snap to slot positions inside the desktop frame. Dropping one onto an occupied slot swaps the two icons, and new icons fill the first free slot. Before the first screen is full, any visible slot can be used; once it is full, adding another icon opens a new row and the desktop scrolls.
 - **Marquee selection and bulk actions.** Hold the right mouse button and drag on empty desktop space to draw a selection box. Drag any selected icon to move the whole selection as a grid block. Remove the selection with <kbd>Delete</kbd> / <kbd>Backspace</kbd>, the selection pill in the toolbar, or the right-click menu. The files on disk are never touched.
 - **Markdown charts.** Fenced `chart` blocks are rendered into SVG bar, line, area, pie and donut charts. Data can be JSON or simple `label,value` lines. Rendering is local and does not execute arbitrary code.
+- **Mermaid diagrams and GFM tables.** Fenced `mermaid` blocks render through a bundled Mermaid 12.2.0 runtime: Gantt timelines, `xychart-beta` charts, flowcharts, sequence/class/state/ER diagrams and more. GitHub-style pipe tables render as real tables. Mermaid is lazy-loaded from the plugin host, not a CDN, and runs with its strict security level.
 - **Virtual folders.** Create folders and drag documents onto a folder icon. Folder badges show how many items are inside. Folders can be nested.
 - **Rename anything.** Use the context menu or <kbd>F2</kbd>. The label in the library changes; the file on disk does not.
 - **Full-screen reading with tabs.** Double-click a document to open it full-screen. The top row is a browser-style tab strip with a Home tab and one tab per open document; tabs can be switched and closed.
@@ -92,6 +93,25 @@ The chart is drawn by the client from the block's data; no external script, netw
 
 ![Rendered bar chart](docs/screenshots/chart.png)
 
+## Mermaid diagrams
+
+Fence a block with `mermaid` and the reader renders it with the bundled Mermaid runtime. Gantt timelines, `xychart-beta`, flowcharts, sequence diagrams, class/state/ER diagrams and the other Mermaid kinds are supported by Mermaid 12.2.0.
+
+````markdown
+```mermaid
+gantt
+    title Four-year plan
+    dateFormat YYYY-MM-DD
+    section Study
+    Semester 1 :a1, 2026-09-01, 2027-02-28
+    Semester 2 :a2, 2027-03-01, 2027-08-31
+```
+````
+
+The Mermaid bundle is vendored in `vendor/mermaid.min.js` (MIT) and served from the plugin host at `/api/dsh-docdesk/mermaid.js`; it is loaded only when a document contains a Mermaid block, and no CDN or external network request is involved. Mermaid runs with `securityLevel: 'strict'`. Wide Gantt timelines scroll horizontally inside their figure; xycharts size to their content so axis labels stay visible.
+
+GFM pipe tables in the Markdown are rendered as real tables too, with optional `:---`, `:---:` and `---:` alignment.
+
 ## How it works
 
 The bundle has two halves:
@@ -108,6 +128,8 @@ Data and limits:
 - The Markdown files remain the source of truth. If a file is moved or deleted outside the plugin, opening it reports the error and lets you remove the entry.
 - Marquee selection, group dragging and bulk removal are client-side state only. Removing an entry from the library never deletes or moves a file.
 - `chart` code blocks are parsed and drawn locally as SVG. Only the block's data is used; no arbitrary JavaScript, external chart library or network request is involved.
+- Mermaid diagrams are rendered by the vendored Mermaid 12.2.0 bundle, served by the host route `/api/dsh-docdesk/mermaid.js` and lazy-loaded only when a `mermaid` block is opened. The runtime uses Mermaid's strict security level; diagram code is not executed as JavaScript.
+- GFM pipe tables and the two fenced-block formats are handled by the client-side Markdown renderer; no extra document preprocessing is written back to disk.
 - Both the list and read endpoints sit behind the same loopback / paired-device fence used by the bundled management pages and reject forwarding headers. Reads are confined to scanned roots and Markdown extensions; a preview is capped at 2 MB.
 - The scan skips `node_modules`, `.git`, build output and virtual environments. Current caps are 3,000 documents, 4,000 directories per workspace, 16,000 directories in total and 6 levels of depth.
 - The sidebar handle calls the host's `layout.toggleSidebar()`. The collapsed state is the host's rail, not a custom zero-width column.
@@ -138,6 +160,7 @@ dsh-docdesk/
 │   ├── en.json           # Plugin manager metadata (English)
 │   └── zh.json           # Plugin manager metadata (Chinese)
 ├── icon.svg              # Bundle icon (used by the plugin manager)
+├── vendor/               # Vendored Mermaid runtime and its MIT license
 ├── screenshots.json      # Market screenshot list
 ├── docs/
 │   ├── icon.png          # Raster icon used by the market listing

@@ -15,12 +15,13 @@
  * paired-device cookie). Reads are additionally confined to the scanned roots.
  */
 
-import { promises as fs } from 'node:fs'
+import { promises as fs, readFileSync } from 'node:fs'
 import path from 'node:path'
 
 const LIST_ROUTE = '/api/dsh-docdesk/list'
 const READ_ROUTE = '/api/dsh-docdesk/read'
 const RESOLVE_ROUTE = '/api/dsh-docdesk/resolve'
+const MERMAID_ROUTE = '/api/dsh-docdesk/mermaid.js'
 
 const MAX_FILES = 3000
 const MAX_DIRS_PER_ROOT = 4000
@@ -313,6 +314,36 @@ function sendJson(response, status, body) {
   response.end(payload)
 }
 
+let mermaidAsset = null
+
+function handleMermaid(ctx, request, response) {
+  if (!isAllowed(ctx, request)) {
+    sendJson(response, 403, { error: 'forbidden' })
+    return
+  }
+  if (request.method && request.method !== 'GET' && request.method !== 'HEAD') {
+    sendJson(response, 405, { error: 'method-not-allowed' })
+    return
+  }
+  try {
+    if (!mermaidAsset) mermaidAsset = readFileSync(new URL('./vendor/mermaid.min.js', import.meta.url))
+    response.writeHead(200, {
+      'content-type': 'text/javascript; charset=utf-8',
+      'content-length': mermaidAsset.length,
+      'cache-control': 'public, max-age=31536000, immutable',
+      'referrer-policy': 'no-referrer',
+      'x-content-type-options': 'nosniff',
+    })
+    if (request.method === 'HEAD') {
+      response.end()
+    } else {
+      response.end(mermaidAsset)
+    }
+  } catch {
+    sendJson(response, 500, { error: 'mermaid-asset-unavailable' })
+  }
+}
+
 function requestUrl(request) {
   try {
     return new URL(request.url ?? '/', `http://${request.headers.host ?? 'localhost'}`)
@@ -564,6 +595,11 @@ export function apply(ctx) {
         kind: 'exact',
         path: RESOLVE_ROUTE,
         handler: (request, response) => handleResolve(ctx, request, response),
+      }),
+      webServer.register({
+        kind: 'exact',
+        path: MERMAID_ROUTE,
+        handler: (request, response) => handleMermaid(ctx, request, response),
       }),
     ]
     return () => {

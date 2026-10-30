@@ -22,6 +22,7 @@
     "README.zh.md",
     "CHANGELOG.md",
     "docs/**/*",
+    "screenshots.json",
     "LICENSE"
   ],
   "keywords": [

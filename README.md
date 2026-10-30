@@ -1,6 +1,6 @@
 # dsh-docdesk · 资料区
 
-An **add-only** Markdown library for DeepSeek Harness. The library starts empty: you pick the documents that matter from your workspaces, place their icons on a fixed non-overlapping desktop grid, and read them full-screen with browser-style tabs.
+An **add-only** Markdown library for DeepSeek Harness. The library starts empty: you pick the documents that matter from your workspaces, place their icons on a fixed non-overlapping desktop grid, marquee-select several at once, and read them full-screen with browser-style tabs and charts rendered from code blocks.
 
 ![Materials panel](docs/screenshots/panel.png)
 
@@ -9,7 +9,7 @@ An **add-only** Markdown library for DeepSeek Harness. The library starts empty:
 DSH agents write notes, plans, research and reports as `.md` files. The files stay in the workspace, but the conversation that produced them scrolls away. 资料区 keeps the documents you choose in one place without turning your whole workspace into a list:
 
 - Nothing is imported automatically. You decide what enters the library.
-- Icons sit on a fixed desktop grid. Two icons never share a slot; the desktop scrolls when there are more icons than fit.
+- Icons sit on a fixed desktop grid. Two icons never share a slot; icons can be placed anywhere in the visible first screen, and the desktop only grows or scrolls after that first screen is full.
 - A document opens as a full-screen reader with tabs, not a cramped side drawer.
 
 The plugin never moves, renames or deletes anything on disk.
@@ -18,7 +18,9 @@ The plugin never moves, renames or deletes anything on disk.
 
 - **Add files explicitly.** The **Add files** button opens a workspace picker with search and multi-select. Documents already in the library are marked and cannot be added twice.
 - **Add from a file card.** A delivered Markdown file card gains an **Add to library** action; right-clicking the card opens a small menu with the same action. If your host does not render deliverable file cards, the picker is always available.
-- **A fixed, non-overlapping desktop grid.** Icons snap to slot positions inside the desktop frame. Dropping one onto an occupied slot swaps the two icons, and new icons fill the first free slot. When there are more icons than fit, the desktop scrolls instead of stacking icons on top of each other.
+- **A fixed, non-overlapping desktop grid.** Icons snap to slot positions inside the desktop frame. Dropping one onto an occupied slot swaps the two icons, and new icons fill the first free slot. Before the first screen is full, any visible slot can be used; once it is full, adding another icon opens a new row and the desktop scrolls.
+- **Marquee selection and bulk actions.** Hold the right mouse button and drag on empty desktop space to draw a selection box. Drag any selected icon to move the whole selection as a grid block. Remove the selection with <kbd>Delete</kbd> / <kbd>Backspace</kbd>, the selection pill in the toolbar, or the right-click menu. The files on disk are never touched.
+- **Markdown charts.** Fenced `chart` blocks are rendered into SVG bar, line, area, pie and donut charts. Data can be JSON or simple `label,value` lines. Rendering is local and does not execute arbitrary code.
 - **Virtual folders.** Create folders and drag documents onto a folder icon. Folder badges show how many items are inside. Folders can be nested.
 - **Rename anything.** Use the context menu or <kbd>F2</kbd>. The label in the library changes; the file on disk does not.
 - **Full-screen reading with tabs.** Double-click a document to open it full-screen. The top row is a browser-style tab strip with a Home tab and one tab per open document; tabs can be switched and closed.
@@ -48,13 +50,47 @@ After installation, refresh the browser tab once so the client plugin loads.
 
 - Open **资料区** in the left sidebar.
 - Click **Add files** (top-right). Search if needed, tick one or more documents, then click **Add selected**.
-- Drag an icon to move it; it snaps to a fixed slot. Dropping it onto an occupied slot swaps the two icons. New icons fill the first free slot. If the desktop has more icons than fit, scroll vertically.
+- Drag an icon to move it; it snaps to a fixed slot. Dropping it onto an occupied slot swaps the two icons. New icons fill the first free slot. You can drop icons anywhere in the visible first screen; a new row and scrolling appear only after the screen is full.
+- Hold the **right mouse button** on empty desktop space and drag to marquee-select icons. Drag any selected icon to move the whole group, or press <kbd>Delete</kbd> / use the selection pill to remove the group from the library (files on disk stay).
 - **New folder** creates a folder in the current page. Drag a document onto a folder icon to file it; double-click the folder to open it.
 - Right-click an icon for **Open, Rename, Copy path, Move to folder** and **Remove from library**. Folders also offer **Delete folder**, which moves their documents back to the parent instead of deleting files.
 - Double-click a document to open it full-screen. Use the **资料区** tab to return to the desktop, click another tab to switch documents, and use the × on a tab to close it.
 - The middle-left handle toggles the sidebar. The host collapses it to its icon rail; click the handle again to restore it.
 
 ![Full-screen document with tabs](docs/screenshots/document.png)
+
+## Charts
+
+Fence a code block with `chart` (or `chart:bar`, `chart:line`, `chart:area`, `chart:pie`, `chart:donut`) and the reader renders it as an SVG chart. JSON is the most explicit form:
+
+````markdown
+```chart
+{
+  "type": "bar",
+  "title": "Weekly documents",
+  "unit": "docs",
+  "data": [
+    { "label": "Mon", "value": 3 },
+    { "label": "Tue", "value": 5 },
+    { "label": "Wed", "value": 4 }
+  ]
+}
+```
+````
+
+Simple `label,value` lines work too:
+
+````markdown
+```chart:line
+W1,2
+W2,4
+W3,3
+```
+````
+
+The chart is drawn by the client from the block's data; no external script, network request, or user code is executed. An unparsable chart block shows the raw code with a short note.
+
+![Rendered bar chart](docs/screenshots/chart.png)
 
 ## How it works
 
@@ -70,6 +106,8 @@ Data and limits:
 
 - The library (documents, display names, folders, positions, open tabs) is stored in the browser under `dsh-docdesk.library.v2`; it is per browser profile and is not synced between devices.
 - The Markdown files remain the source of truth. If a file is moved or deleted outside the plugin, opening it reports the error and lets you remove the entry.
+- Marquee selection, group dragging and bulk removal are client-side state only. Removing an entry from the library never deletes or moves a file.
+- `chart` code blocks are parsed and drawn locally as SVG. Only the block's data is used; no arbitrary JavaScript, external chart library or network request is involved.
 - Both the list and read endpoints sit behind the same loopback / paired-device fence used by the bundled management pages and reject forwarding headers. Reads are confined to scanned roots and Markdown extensions; a preview is capped at 2 MB.
 - The scan skips `node_modules`, `.git`, build output and virtual environments. Current caps are 3,000 documents, 4,000 directories per workspace, 16,000 directories in total and 6 levels of depth.
 - The sidebar handle calls the host's `layout.toggleSidebar()`. The collapsed state is the host's rail, not a custom zero-width column.
@@ -83,6 +121,10 @@ Data and limits:
 | Folder | Sidebar entry |
 | --- | --- |
 | ![Folder](docs/screenshots/folder.png) | ![Sidebar entry](docs/screenshots/sidebar.png) |
+
+| Charts |
+| --- |
+| ![Rendered bar chart](docs/screenshots/chart.png) |
 
 ## Project layout
 

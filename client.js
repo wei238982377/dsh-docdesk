@@ -63,6 +63,18 @@ window.__ModuleLoader__.load({
       'doc.failed': '读取失败：{reason}',
       'doc.empty': '这个文件是空的',
       'doc.truncated': '文件较大，仅显示前 2 MB',
+      'chart.invalid': '图表数据无法解析，已显示原始代码。',
+      'chart.source': '查看数据',
+      'chart.empty': '图表没有可显示的数据',
+      'chart.aria': '图表',
+      'chart.other': '其他',
+      'selection.count': '已选 {count} 项',
+      'action.removeSelected': '从资料区移除 {count} 项',
+      'action.deselect': '取消选择',
+      'toast.noRoom': '附近没有足够的连续空位',
+      'confirm.removeTitle': '从资料区移除？',
+      'confirm.removeMany': '选中的 {count} 项会从资料区移除，磁盘上的文件不会被删除；文件夹里的文档会移回上一级。',
+      'confirm.remove': '移除',
       'status.count': '{count} 个文档',
       'toast.added': '已加入 {count} 个文档',
       'toast.already': '这些文档已经在资料区了',
@@ -84,6 +96,7 @@ window.__ModuleLoader__.load({
       'confirm.deleteWithFiles': '文件夹里的 {count} 个文档会移回上一级，磁盘上的文件不会被删除。',
       'confirm.deleteEmpty': '这个文件夹是空的，删除后无法恢复。',
       'confirm.delete': '删除',
+      'confirm.cancel': '取消',
       'error.load': '扫描失败：{reason}',
       'error.read': '读取失败：{reason}',
       'error.forbidden': '无法访问（仅本机可用）',
@@ -136,6 +149,18 @@ window.__ModuleLoader__.load({
       'doc.failed': 'Read failed: {reason}',
       'doc.empty': 'This file is empty',
       'doc.truncated': 'Large file: showing the first 2 MB',
+      'chart.invalid': 'Chart data could not be parsed; the raw code is shown below.',
+      'chart.source': 'View data',
+      'chart.empty': 'The chart has no data to show',
+      'chart.aria': 'Chart',
+      'chart.other': 'Other',
+      'selection.count': '{count} selected',
+      'action.removeSelected': 'Remove {count} from library',
+      'action.deselect': 'Deselect',
+      'toast.noRoom': 'There is no free block of slots nearby',
+      'confirm.removeTitle': 'Remove from library?',
+      'confirm.removeMany': 'The selected {count} item(s) will be removed from the library. Files on disk are not deleted; documents inside removed folders return to the parent.',
+      'confirm.remove': 'Remove',
       'status.count': '{count} documents',
       'toast.added': '{count} documents added',
       'toast.already': 'Those documents are already in the library',
@@ -157,6 +182,7 @@ window.__ModuleLoader__.load({
       'confirm.deleteWithFiles': '{count} document(s) move back to the parent folder. Files on disk are not deleted.',
       'confirm.deleteEmpty': 'This folder is empty. Deleting it cannot be undone.',
       'confirm.delete': 'Delete',
+      'confirm.cancel': 'Cancel',
       'error.load': 'Scan failed: {reason}',
       'error.read': 'Read failed: {reason}',
       'error.forbidden': 'Access denied (loopback only)',
@@ -528,6 +554,50 @@ window.__ModuleLoader__.load({
       }
     }
 
+    function entryKey(entry) {
+      return `${entry.kind}:${entry.id}`
+    }
+
+    function rectsIntersect(left, right) {
+      return left.left < right.right && left.right > right.left && left.top < right.bottom && left.bottom > right.top
+    }
+
+    function findGroupPlacement(group, desiredDc, desiredDr, columns, occupied) {
+      for (let radius = 0; radius <= 6; radius += 1) {
+        for (let ddc = -radius; ddc <= radius; ddc += 1) {
+          const remaining = radius - Math.abs(ddc)
+          const rowOffsets = remaining === 0 ? [0] : [remaining, -remaining]
+          for (const ddr of rowOffsets) {
+            const updates = []
+            const used = new Set()
+            let valid = true
+            for (const item of group) {
+              const origin = positionSlot(item.originX, item.originY, columns)
+              if (!origin) {
+                valid = false
+                break
+              }
+              const col = origin.col + desiredDc + ddc
+              const row = origin.row + desiredDr + ddr
+              if (col < 0 || col >= columns || row < 0) {
+                valid = false
+                break
+              }
+              const index = row * columns + col
+              if (used.has(index) || occupied.has(index)) {
+                valid = false
+                break
+              }
+              used.add(index)
+              updates.push({ kind: item.kind, id: item.id, x: PAD + col * CELL_W, y: PAD + row * CELL_H })
+            }
+            if (valid) return updates
+          }
+        }
+      }
+      return null
+    }
+
     /* --------------------------------------------------------------- icons */
 
     function icon(name, size) {
@@ -656,7 +726,7 @@ window.__ModuleLoader__.load({
       }
       while (index < lines.length) {
         const line = lines[index]
-        const fence = /^```([\w+#.-]*)\s*$/.exec(line)
+        const fence = /^```([\w+#.:-]*)\s*$/.exec(line)
         if (fence) {
           flush()
           const code = []
@@ -666,7 +736,13 @@ window.__ModuleLoader__.load({
             index += 1
           }
           if (index < lines.length) index += 1
-          blocks.push(h('pre', { key: `${prefix}-pre${key++}`, className: 'dsd-md-pre' }, h('code', null, code.join('\n'))))
+          const codeText = code.join('\n')
+          const chart = parseChartBlock(fence[1], codeText)
+          if (chart) {
+            blocks.push(h(ChartBlock, { key: `${prefix}-chart${key++}`, spec: chart }))
+          } else {
+            blocks.push(h('pre', { key: `${prefix}-pre${key++}`, className: 'dsd-md-pre' }, h('code', null, codeText)))
+          }
           continue
         }
         if (/^\s*$/.test(line)) {
@@ -725,6 +801,231 @@ window.__ModuleLoader__.load({
       return blocks
     }
 
+    /* -------------------------------------------------------------- charts */
+
+    const CHART_PALETTE = ['#7aaaff', '#4fd1c5', '#f6ad55', '#f687b3', '#9f7aea', '#f6e05e', '#68d391', '#fc8181']
+    const CHART_TYPES = new Set(['bar', 'line', 'area', 'pie', 'donut'])
+
+    function parseChartBlock(language, source) {
+      const lower = String(language || '').toLowerCase()
+      if (lower !== 'chart' && !lower.startsWith('chart:')) return null
+      const requested = lower.startsWith('chart:') ? lower.slice(6) : ''
+      let raw = null
+      try {
+        const parsed = JSON.parse(source)
+        if (parsed && typeof parsed === 'object' && Array.isArray(parsed.data)) raw = parsed
+      } catch {
+        /* not JSON; try the simple CSV shape below */
+      }
+      if (!raw) {
+        const data = []
+        for (const line of String(source).split(/\r?\n/u)) {
+          const text = line.trim()
+          if (!text || text.startsWith('#')) continue
+          const parts = text.split(/[,\t;]/u).map((part) => part.trim())
+          if (parts.length < 2) continue
+          const value = Number(parts[1])
+          if (!Number.isFinite(value)) continue
+          data.push({ label: parts[0], value })
+        }
+        if (data.length > 0) raw = { data }
+      }
+      if (!raw) return { invalid: true, source, type: 'bar', data: [] }
+      const typeCandidate = (requested || raw.type || 'bar').toLowerCase()
+      const type = CHART_TYPES.has(typeCandidate) ? typeCandidate : 'bar'
+      const data = (raw.data || [])
+        .map((item, index) => {
+          if (Array.isArray(item)) return { label: String(item[0] ?? index + 1).slice(0, 40), value: Number(item[1]) }
+          return { label: String(item?.label ?? item?.name ?? index + 1).slice(0, 40), value: Number(item?.value ?? item?.count) }
+        })
+        .filter((item) => Number.isFinite(item.value))
+        .slice(0, 60)
+      if (data.length === 0) return { invalid: true, source, type, data: [] }
+      return {
+        invalid: false,
+        type,
+        data,
+        title: typeof raw.title === 'string' ? raw.title : '',
+        unit: typeof raw.unit === 'string' ? raw.unit : '',
+        source,
+      }
+    }
+
+    function formatChartNumber(value) {
+      if (!Number.isFinite(value)) return ''
+      const abs = Math.abs(value)
+      if (abs >= 1000000) return `${(value / 1000000).toFixed(1)}M`
+      if (abs >= 1000) return `${(value / 1000).toFixed(1)}K`
+      if (Number.isInteger(value)) return String(value)
+      return value.toFixed(1)
+    }
+
+    function chartValueLabel(value, unit) {
+      return `${formatChartNumber(value)}${unit ? ` ${unit}` : ''}`
+    }
+
+    function ChartSource({ source }) {
+      if (!source) return null
+      return h('details', { className: 'dsd-chart-source' }, h('summary', null, t('chart.source')), h('pre', null, source))
+    }
+
+    function ChartBlock({ spec }) {
+      if (!spec) return null
+      if (spec.invalid) {
+        return h(
+          'figure',
+          { className: 'dsd-chart dsd-chart-invalid' },
+          h('div', { className: 'dsd-chart-error' }, t('chart.invalid')),
+          h(ChartSource, { source: spec.source }),
+        )
+      }
+      if (spec.type === 'pie' || spec.type === 'donut') return h(PieChart, { spec })
+      return h(AxisChart, { spec })
+    }
+
+    function AxisChart({ spec }) {
+      const data = spec.data
+      const width = 640
+      const height = 300
+      const margin = { left: 48, right: 18, top: 18, bottom: 50 }
+      const plotW = width - margin.left - margin.right
+      const plotH = height - margin.top - margin.bottom
+      const values = data.map((item) => item.value)
+      const rawMin = Math.min(0, ...values)
+      const rawMax = Math.max(0, ...values)
+      const domainSpan = rawMax - rawMin || 1
+      const tickCount = 4
+      const roughStep = domainSpan / tickCount
+      const magnitude = 10 ** Math.floor(Math.log10(roughStep))
+      const normalized = roughStep / magnitude
+      const stepMultiplier = normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10
+      const step = stepMultiplier * magnitude
+      const axisMin = Math.floor(rawMin / step) * step
+      const axisMax = Math.ceil(rawMax / step) * step
+      const span = axisMax - axisMin || 1
+      const yOf = (value) => margin.top + plotH - ((value - axisMin) / span) * plotH
+      const baseline = yOf(0)
+      const ticks = Math.max(1, Math.round(span / step))
+      const tickValues = Array.from({ length: ticks + 1 }, (_, index) => axisMin + step * index)
+      const slot = plotW / Math.max(1, data.length)
+      const labelEvery = Math.max(1, Math.ceil(data.length / 12))
+      const isLine = spec.type === 'line' || spec.type === 'area'
+      const color = CHART_PALETTE[0]
+      const points = data.map((item, index) => ({ ...item, x: margin.left + slot * index + slot / 2, y: yOf(item.value) }))
+      const linePath = points.map((point, index) => `${index === 0 ? 'M' : 'L'}${point.x.toFixed(2)},${point.y.toFixed(2)}`).join(' ')
+      const areaPath =
+        points.length > 0
+          ? `${linePath} L${points[points.length - 1].x.toFixed(2)},${baseline.toFixed(2)} L${points[0].x.toFixed(2)},${baseline.toFixed(2)} Z`
+          : ''
+      const elements = []
+      tickValues.forEach((value, index) => {
+        const py = yOf(value)
+        elements.push(h('line', { key: `grid-${index}`, x1: margin.left, x2: width - margin.right, y1: py, y2: py, stroke: 'var(--dsw-alias-border-l1,#e4e4ea)', strokeWidth: 1 }))
+        elements.push(
+          h('text', { key: `tick-${index}`, x: margin.left - 8, y: py + 4, textAnchor: 'end', fontSize: 10, fill: 'var(--dsw-alias-label-secondary,#6b6b76)' }, formatChartNumber(value)),
+        )
+      })
+      elements.push(h('line', { key: 'zero', x1: margin.left, x2: width - margin.right, y1: baseline, y2: baseline, stroke: 'var(--dsw-alias-border-l2,#d0d0d8)', strokeWidth: 1 }))
+      if (isLine) {
+        if (spec.type === 'area' && points.length > 0) elements.push(h('path', { key: 'area', d: areaPath, fill: color, fillOpacity: 0.16, stroke: 'none' }))
+        if (points.length > 0) elements.push(h('path', { key: 'line', d: linePath, fill: 'none', stroke: color, strokeWidth: 2.5, strokeLinejoin: 'round', strokeLinecap: 'round' }))
+        points.forEach((point, index) => {
+          elements.push(
+            h('circle', { key: `point-${index}`, cx: point.x, cy: point.y, r: 3.2, fill: color, stroke: 'var(--dsw-alias-bg-layer-1,#fff)', strokeWidth: 1.5 }, h('title', null, `${point.label}: ${chartValueLabel(point.value, spec.unit)}`)),
+          )
+        })
+      } else {
+        const barWidth = Math.max(4, Math.min(44, slot * 0.55))
+        points.forEach((point, index) => {
+          const top = point.value >= 0 ? point.y : baseline
+          const barHeight = Math.max(0.8, Math.abs(baseline - point.y))
+          elements.push(
+            h('rect', { key: `bar-${index}`, x: point.x - barWidth / 2, y: top, width: barWidth, height: barHeight, rx: Math.min(4, barWidth / 2), fill: color, fillOpacity: 0.86 }, h('title', null, `${point.label}: ${chartValueLabel(point.value, spec.unit)}`)),
+          )
+          if (data.length <= 16) {
+            elements.push(h('text', { key: `value-${index}`, x: point.x, y: top - 5, textAnchor: 'middle', fontSize: 10, fill: 'var(--dsw-alias-label-secondary,#6b6b76)' }, formatChartNumber(point.value)))
+          }
+        })
+      }
+      points.forEach((point, index) => {
+        if (index % labelEvery !== 0) return
+        const label = point.label.length > 10 ? `${point.label.slice(0, 9)}…` : point.label
+        elements.push(h('text', { key: `label-${index}`, x: point.x, y: height - margin.bottom + 18, textAnchor: 'middle', fontSize: 10, fill: 'var(--dsw-alias-label-secondary,#6b6b76)' }, label))
+      })
+      return h(
+        'figure',
+        { className: 'dsd-chart' },
+        spec.title ? h('figcaption', { className: 'dsd-chart-title' }, spec.title) : null,
+        h('svg', { viewBox: `0 0 ${width} ${height}`, role: 'img', 'aria-label': spec.title || t('chart.aria') }, elements),
+        h(ChartSource, { source: spec.source }),
+      )
+    }
+
+    function PieChart({ spec }) {
+      const positive = spec.data.filter((item) => item.value > 0)
+      if (positive.length === 0) {
+        return h('figure', { className: 'dsd-chart' }, h('div', { className: 'dsd-chart-empty' }, t('chart.empty')), h(ChartSource, { source: spec.source }))
+      }
+      const limited =
+        positive.length > 12
+          ? [...positive.slice(0, 11), { label: t('chart.other'), value: positive.slice(11).reduce((sum, item) => sum + item.value, 0) }]
+          : positive
+      const total = limited.reduce((sum, item) => sum + item.value, 0)
+      const cx = 190
+      const cy = 150
+      const outer = 108
+      const inner = spec.type === 'donut' ? 62 : 0
+      const donutRadius = (outer + inner) / 2
+      const circumference = 2 * Math.PI * donutRadius
+      let angle = -Math.PI / 2
+      const elements = []
+      limited.forEach((item, index) => {
+        const sweep = (item.value / total) * Math.PI * 2
+        const color = CHART_PALETTE[index % CHART_PALETTE.length]
+        const percent = ((item.value / total) * 100).toFixed(1)
+        if (spec.type === 'donut') {
+          const length = (item.value / total) * circumference
+          elements.push(
+            h('circle', {
+              key: `donut-${index}`,
+              cx,
+              cy,
+              r: donutRadius,
+              fill: 'none',
+              stroke: color,
+              strokeWidth: outer - inner,
+              strokeDasharray: `${length} ${circumference - length}`,
+              strokeDashoffset: -((angle + Math.PI / 2) / (Math.PI * 2)) * circumference,
+              transform: `rotate(-90 ${cx} ${cy})`,
+            }, h('title', null, `${item.label}: ${chartValueLabel(item.value, spec.unit)} (${percent}%)`)),
+          )
+        } else if (sweep >= Math.PI * 2 - 0.0001) {
+          elements.push(h('circle', { key: `pie-${index}`, cx, cy, r: outer, fill: color }, h('title', null, `${item.label}: ${chartValueLabel(item.value, spec.unit)} (${percent}%)`)))
+        } else {
+          const startX = cx + outer * Math.cos(angle)
+          const startY = cy + outer * Math.sin(angle)
+          const endX = cx + outer * Math.cos(angle + sweep)
+          const endY = cy + outer * Math.sin(angle + sweep)
+          const large = sweep > Math.PI ? 1 : 0
+          const d = `M${cx},${cy} L${startX.toFixed(2)},${startY.toFixed(2)} A${outer},${outer} 0 ${large} 1 ${endX.toFixed(2)},${endY.toFixed(2)} Z`
+          elements.push(h('path', { key: `pie-${index}`, d, fill: color }, h('title', null, `${item.label}: ${chartValueLabel(item.value, spec.unit)} (${percent}%)`)))
+        }
+        angle += sweep
+        const rowY = 42 + index * 19
+        elements.push(h('rect', { key: `legend-${index}`, x: 352, y: rowY - 8, width: 10, height: 10, rx: 2, fill: color }))
+        const label = item.label.length > 14 ? `${item.label.slice(0, 13)}…` : item.label
+        elements.push(h('text', { key: `legend-label-${index}`, x: 370, y: rowY, fontSize: 11, fill: 'var(--dsw-alias-label-primary,#1b1b1f)' }, label))
+        elements.push(h('text', { key: `legend-value-${index}`, x: 616, y: rowY, textAnchor: 'end', fontSize: 10.5, fill: 'var(--dsw-alias-label-secondary,#6b6b76)' }, `${chartValueLabel(item.value, spec.unit)} · ${percent}%`))
+      })
+      return h(
+        'figure',
+        { className: 'dsd-chart' },
+        spec.title ? h('figcaption', { className: 'dsd-chart-title' }, spec.title) : null,
+        h('svg', { viewBox: '0 0 640 300', role: 'img', 'aria-label': spec.title || t('chart.aria') }, elements),
+        h(ChartSource, { source: spec.source }),
+      )
+    }
+
     /* ---------------------------------------------------------------- css */
 
     const CSS = `
@@ -768,6 +1069,9 @@ window.__ModuleLoader__.load({
 .dsd-desktop { position:relative; flex:1; min-height:0; overflow:auto; border-radius:12px; border:1px solid var(--dsw-alias-border-l1,#e4e4ea); scrollbar-width:thin; scrollbar-gutter:stable; }
 .dsd-desktop-canvas { position:relative; width:100%; min-height:100%; background-color:color-mix(in srgb, var(--dsw-alias-bg-layer-1,#f6f6f8) 62%, transparent); background-image:radial-gradient(circle, color-mix(in srgb, var(--dsw-alias-border-l2,#d0d0d8) 72%, transparent) 1px, transparent 1px); background-size:22px 22px; background-position:7px 7px; }
 .dsd-slot-ghost { position:absolute; width:88px; height:104px; border-radius:10px; border:1px dashed var(--dsw-alias-state-business-primary,#2f6fed); background:color-mix(in srgb, var(--dsw-alias-state-business-primary,#2f6fed) 9%, transparent); pointer-events:none; z-index:1; }
+.dsd-marquee { position:absolute; border:1px solid var(--dsw-alias-state-business-primary,#2f6fed); background:color-mix(in srgb, var(--dsw-alias-state-business-primary,#2f6fed) 12%, transparent); border-radius:4px; pointer-events:none; z-index:20; }
+.dsd-selection-pill { display:inline-flex; align-items:center; gap:4px; height:24px; padding:0 8px; border-radius:999px; border:1px solid color-mix(in srgb, var(--dsw-alias-state-business-primary,#2f6fed) 40%, transparent); background:color-mix(in srgb, var(--dsw-alias-state-business-primary,#2f6fed) 12%, transparent); color:var(--dsw-alias-state-business-primary,#2f6fed); font:inherit; font-size:11px; cursor:pointer; white-space:nowrap; }
+.dsd-selection-pill:hover { background:color-mix(in srgb, var(--dsw-alias-state-business-primary,#2f6fed) 20%, transparent); }
 .dsd-item { position:absolute; width:88px; box-sizing:border-box; padding:5px 3px 6px; border-radius:10px; border:1px solid transparent; display:flex; flex-direction:column; align-items:center; gap:5px; cursor:default; user-select:none; touch-action:none; }
 .dsd-item[data-pending=true] { opacity:0; }
 .dsd-item:hover { background:color-mix(in srgb, var(--dsw-alias-label-primary,#1b1b1f) 6%, transparent); }
@@ -806,6 +1110,14 @@ window.__ModuleLoader__.load({
 .dsd-md-inline-code { padding:1px 5px; border-radius:5px; background:var(--dsw-alias-bg-layer-2,#f0f0f4); font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:.9em; }
 .dsd-md-quote { margin:.8em 0; padding:2px 0 2px 12px; border-left:3px solid var(--dsw-alias-border-l2,#d0d0d8); color:var(--dsw-alias-label-secondary,#6b6b76); }
 .dsd-md-hr { height:1px; margin:1.3em 0; border:none; background:var(--dsw-alias-border-l1,#e4e4ea); }
+.dsd-chart { margin:1.2em 0 1.5em; padding:12px 14px 8px; border:1px solid var(--dsw-alias-border-l1,#e4e4ea); border-radius:12px; background:color-mix(in srgb, var(--dsw-alias-bg-layer-1,#f6f6f8) 55%, transparent); }
+.dsd-chart-title { margin:0 0 4px; font-size:13px; font-weight:650; color:var(--dsw-alias-label-primary,#1b1b1f); }
+.dsd-chart svg { display:block; width:100%; height:auto; overflow:visible; }
+.dsd-chart-source { margin-top:5px; font-size:11px; color:var(--dsw-alias-label-secondary,#6b6b76); }
+.dsd-chart-source summary { cursor:pointer; }
+.dsd-chart-source pre { margin:6px 0 0; padding:8px 10px; border-radius:6px; background:var(--dsw-alias-bg-layer-2,#f0f0f4); overflow:auto; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:11px; line-height:1.5; }
+.dsd-chart-error { padding:10px 12px; border-radius:8px; border:1px dashed var(--dsw-alias-state-warn-primary,#b06a00); color:var(--dsw-alias-state-warn-primary,#b06a00); font-size:12px; line-height:1.6; }
+.dsd-chart-empty { padding:22px 10px; text-align:center; color:var(--dsw-alias-label-secondary,#6b6b76); font-size:12.5px; }
 .dsd-doc-body a { color:var(--dsw-alias-state-business-primary,#2f6fed); text-decoration:none; }
 .dsd-doc-body a:hover { text-decoration:underline; }
 .dsd-menu { position:fixed; z-index:2000; min-width:196px; max-width:264px; max-height:min(72vh,420px); overflow:auto; padding:5px; border-radius:10px; background:var(--dsw-alias-bg-layer-2,#fff); border:1px solid var(--dsw-alias-border-l1,#e4e4ea); box-shadow:0 14px 36px rgba(0,0,0,.2); animation:dsd-pop .12s ease-out; }
@@ -996,10 +1308,11 @@ window.__ModuleLoader__.load({
       const library = useLibrary()
       const [currentFolder, setCurrentFolder] = useState(null)
       const [viewport, setViewport] = useState({ width: 0, height: 0 })
-      const [selected, setSelected] = useState(null)
+      const [selected, setSelected] = useState(() => new Set())
       const [menu, setMenu] = useState(null)
       const [renaming, setRenaming] = useState(null)
       const [drag, setDrag] = useState(null)
+      const [marquee, setMarquee] = useState(null)
       const [dropFolder, setDropFolder] = useState(null)
       const [dropSlot, setDropSlot] = useState(null)
       const [picker, setPicker] = useState({ open: false, status: 'idle', files: [], roots: [], truncated: false, partial: false, error: null, query: '', selected: new Set() })
@@ -1012,6 +1325,9 @@ window.__ModuleLoader__.load({
       const panelRef = useRef(null)
       const desktopRef = useRef(null)
       const dragRef = useRef(null)
+      const marqueeRef = useRef(null)
+      const selectedRef = useRef(selected)
+      selectedRef.current = selected
       const renameRef = useRef(null)
       const toastTimer = useRef(0)
       const pickerToken = useRef(0)
@@ -1072,6 +1388,8 @@ window.__ModuleLoader__.load({
         return slot ? Math.max(max, slot.row) : max
       }, 0)
       const rowCount = Math.max(1, Math.ceil(allEntries.length / columns), maxRow + 1)
+      const visibleRows = Math.max(1, Math.floor((viewport.height - PAD * 2) / CELL_H))
+      const targetRows = Math.max(rowCount, visibleRows)
       const canvasHeight = Math.max(viewport.height, PAD * 2 + rowCount * CELL_H)
 
       const entries = useMemo(() => {
@@ -1081,6 +1399,17 @@ window.__ModuleLoader__.load({
           : allEntries
         return filtered.slice().sort((left, right) => (left.y ?? 0) - (right.y ?? 0) || (left.x ?? 0) - (right.x ?? 0))
       }, [allEntries, search])
+
+      const selectedEntries = useMemo(() => allEntries.filter((entry) => selected.has(entryKey(entry))), [allEntries, selected])
+
+      useEffect(() => {
+        const visible = new Set(entries.map(entryKey))
+        setSelected((previous) => {
+          if (previous.size === 0) return previous
+          const next = new Set([...previous].filter((key) => visible.has(key)))
+          return next.size === previous.size ? previous : next
+        })
+      }, [entries])
 
       useEffect(() => {
         if (viewport.width < ICON_W + PAD * 2) return
@@ -1248,7 +1577,7 @@ window.__ModuleLoader__.load({
       const openEntry = useCallback((entry) => {
         if (entry.kind === 'folder') {
           setCurrentFolder(entry.id)
-          setSelected(null)
+          setSelected(new Set())
           setMenu(null)
           return
         }
@@ -1260,10 +1589,15 @@ window.__ModuleLoader__.load({
         (path) => {
           store.removeItem(path)
           setMenu(null)
-          if (selected && selected.key === path) setSelected(null)
+          setSelected((previous) => {
+            if (!previous.has(`file:${path}`)) return previous
+            const next = new Set(previous)
+            next.delete(`file:${path}`)
+            return next
+          })
           showToast(t('toast.removed'))
         },
-        [selected, showToast],
+        [showToast],
       )
 
       const moveEntry = useCallback(
@@ -1285,6 +1619,7 @@ window.__ModuleLoader__.load({
             onConfirm: () => {
               const parent = store.removeFolder(folder.id)
               if (currentFolder && descendantFolders(library.folders, folder.id).has(currentFolder)) setCurrentFolder(parent)
+              setSelected(new Set())
               setConfirmState(null)
               showToast(t('toast.folderDeleted'))
             },
@@ -1293,39 +1628,133 @@ window.__ModuleLoader__.load({
         [library.folders, library.items, currentFolder, showToast],
       )
 
-      const onPointerDown = useCallback((event, entry) => {
-        if (event.button !== 0 && event.pointerType === 'mouse') return
-        if (renameRef.current) return
+      const deleteSelection = useCallback(() => {
+        const chosen = allEntries.filter((entry) => selectedRef.current.has(entryKey(entry)))
+        if (chosen.length === 0) return
+        if (chosen.length === 1 && chosen[0].kind === 'file') {
+          store.removeItem(chosen[0].id)
+          setSelected(new Set())
+          setMenu(null)
+          showToast(t('toast.removed'))
+          return
+        }
+        setMenu(null)
+        setConfirmState({
+          title: t('confirm.removeTitle'),
+          message: t('confirm.removeMany', { count: chosen.length }),
+          confirmLabel: t('confirm.remove'),
+          onConfirm: () => {
+            for (const entry of chosen) {
+              if (entry.kind === 'file') store.removeItem(entry.id)
+              else store.removeFolder(entry.id)
+            }
+            setSelected(new Set())
+            setConfirmState(null)
+            showToast(t('toast.removed'))
+          },
+        })
+      }, [allEntries, showToast])
+
+      const onPointerDown = useCallback(
+        (event, entry) => {
+          if (event.button !== 0 && event.pointerType === 'mouse') return
+          if (renameRef.current) return
+          try {
+            event.currentTarget.setPointerCapture(event.pointerId)
+          } catch {
+            /* ignore */
+          }
+          const key = entryKey(entry)
+          const currentSelected = selectedRef.current
+          const groupEntries =
+            currentSelected.has(key) && currentSelected.size > 1
+              ? entries.filter((candidate) => currentSelected.has(entryKey(candidate)))
+              : [entry]
+          if (!currentSelected.has(key) || currentSelected.size === 1) setSelected(new Set([key]))
+          const frame = desktopRef.current
+          let startCanvasX = event.clientX
+          let startCanvasY = event.clientY
+          if (frame) {
+            const rect = frame.getBoundingClientRect()
+            startCanvasX = event.clientX - rect.left + frame.scrollLeft
+            startCanvasY = event.clientY - rect.top + frame.scrollTop
+          }
+          dragRef.current = {
+            anchorKey: key,
+            group: groupEntries.map((candidate) => ({
+              kind: candidate.kind,
+              id: candidate.id,
+              key: entryKey(candidate),
+              originX: Number.isFinite(candidate.x) ? candidate.x : PAD,
+              originY: Number.isFinite(candidate.y) ? candidate.y : PAD,
+            })),
+            startCanvasX,
+            startCanvasY,
+            moved: false,
+          }
+          setDropSlot(null)
+          setMenu(null)
+        },
+        [entries],
+      )
+
+      const onDesktopPointerDown = useCallback((event) => {
+        if (event.button !== 2) return
+        const target = event.target
+        if (target && target.closest && target.closest('.dsd-item')) return
+        const frame = desktopRef.current
+        if (!frame) return
+        event.preventDefault()
+        const rect = frame.getBoundingClientRect()
+        const x = event.clientX - rect.left + frame.scrollLeft
+        const y = event.clientY - rect.top + frame.scrollTop
+        marqueeRef.current = {
+          startX: x,
+          startY: y,
+          currentX: x,
+          currentY: y,
+          initial: new Set(selectedRef.current),
+          additive: event.ctrlKey || event.metaKey,
+          moved: false,
+        }
+        setMarquee({ left: x, top: y, width: 0, height: 0 })
+        setMenu(null)
         try {
-          event.currentTarget.setPointerCapture(event.pointerId)
+          frame.setPointerCapture(event.pointerId)
         } catch {
           /* ignore */
         }
-        const frame = desktopRef.current
-        let startCanvasX = event.clientX
-        let startCanvasY = event.clientY
-        if (frame) {
-          const rect = frame.getBoundingClientRect()
-          startCanvasX = event.clientX - rect.left + frame.scrollLeft
-          startCanvasY = event.clientY - rect.top + frame.scrollTop
-        }
-        dragRef.current = {
-          kind: entry.kind,
-          id: entry.id,
-          path: entry.path,
-          startCanvasX,
-          startCanvasY,
-          originX: Number.isFinite(entry.x) ? entry.x : PAD,
-          originY: Number.isFinite(entry.y) ? entry.y : PAD,
-          moved: false,
-        }
-        setSelected({ kind: entry.kind, key: entry.id })
-        setDropSlot(null)
-        setMenu(null)
       }, [])
 
       const onPointerMove = useCallback(
         (event) => {
+          if (marqueeRef.current) {
+            const frame = desktopRef.current
+            if (!frame) return
+            const current = marqueeRef.current
+            const rect = frame.getBoundingClientRect()
+            const x = event.clientX - rect.left + frame.scrollLeft
+            const y = event.clientY - rect.top + frame.scrollTop
+            current.currentX = x
+            current.currentY = y
+            if (Math.abs(x - current.startX) > 3 || Math.abs(y - current.startY) > 3) current.moved = true
+            const left = Math.min(current.startX, x)
+            const top = Math.min(current.startY, y)
+            const width = Math.abs(x - current.startX)
+            const height = Math.abs(y - current.startY)
+            setMarquee({ left, top, width, height })
+            const selectionRect = { left, top, right: left + width, bottom: top + height }
+            const keys = entries
+              .filter(
+                (entry) =>
+                  Number.isFinite(entry.x) &&
+                  Number.isFinite(entry.y) &&
+                  rectsIntersect({ left: entry.x, top: entry.y, right: entry.x + ICON_W, bottom: entry.y + ICON_H }, selectionRect),
+              )
+              .map(entryKey)
+            setSelected(current.additive ? new Set([...current.initial, ...keys]) : new Set(keys))
+            return
+          }
           const current = dragRef.current
           const frame = desktopRef.current
           if (!current || !frame) return
@@ -1336,29 +1765,60 @@ window.__ModuleLoader__.load({
           const dy = canvasY - current.startCanvasY
           if (!current.moved && Math.hypot(dx, dy) < 4) return
           current.moved = true
-          const position = clampToCanvas(current.originX + dx, current.originY + dy, frame.clientWidth, canvasHeight)
-          setDrag({ kind: current.kind, id: current.id, x: position.x, y: position.y })
-          setDropSlot(nearestSlot(position.x + ICON_W / 2, position.y + ICON_CENTER_Y, columns, rowCount))
-          let folderId = null
-          try {
-            for (const holder of document.querySelectorAll('[data-dsd-folder-id]')) {
-              if (holder.getAttribute('data-dsd-folder-id') === current.id) continue
-              const rectOfFolder = holder.getBoundingClientRect()
-              if (event.clientX >= rectOfFolder.left && event.clientX <= rectOfFolder.right && event.clientY >= rectOfFolder.top && event.clientY <= rectOfFolder.bottom) {
-                folderId = holder.getAttribute('data-dsd-folder-id')
-                break
+          const group = current.group
+          const minX = Math.min(...group.map((item) => item.originX))
+          const maxX = Math.max(...group.map((item) => item.originX + ICON_W))
+          const minY = Math.min(...group.map((item) => item.originY))
+          const maxY = Math.max(...group.map((item) => item.originY + ICON_H))
+          const minDx = PAD - minX
+          const maxDx = frame.clientWidth - PAD - maxX
+          const minDy = PAD - minY
+          const maxDy = canvasHeight - PAD - maxY
+          const clampedDx = maxDx >= minDx ? clamp(dx, minDx, maxDx) : 0
+          const clampedDy = maxDy >= minDy ? clamp(dy, minDy, maxDy) : 0
+          const items = {}
+          for (const item of group) items[item.key] = { x: item.originX + clampedDx, y: item.originY + clampedDy }
+          setDrag({ items, anchorKey: current.anchorKey })
+          const anchor = group.find((item) => item.key === current.anchorKey) || group[0]
+          const anchorPos = items[anchor.key]
+          setDropSlot(nearestSlot(anchorPos.x + ICON_W / 2, anchorPos.y + ICON_CENTER_Y, columns, targetRows))
+          if (group.length === 1) {
+            let folderId = null
+            try {
+              for (const holder of document.querySelectorAll('[data-dsd-folder-id]')) {
+                if (holder.getAttribute('data-dsd-folder-id') === anchor.id) continue
+                const rectOfFolder = holder.getBoundingClientRect()
+                if (event.clientX >= rectOfFolder.left && event.clientX <= rectOfFolder.right && event.clientY >= rectOfFolder.top && event.clientY <= rectOfFolder.bottom) {
+                  folderId = holder.getAttribute('data-dsd-folder-id')
+                  break
+                }
               }
+            } catch {
+              folderId = null
             }
-          } catch {
-            folderId = null
+            if (folderId !== dropFolder) setDropFolder(folderId)
+          } else if (dropFolder) {
+            setDropFolder(null)
           }
-          if (folderId !== dropFolder) setDropFolder(folderId)
         },
-        [canvasHeight, columns, rowCount, dropFolder],
+        [canvasHeight, columns, targetRows, dropFolder, entries],
       )
 
       const onPointerUp = useCallback(
         (event) => {
+          if (marqueeRef.current) {
+            const frame = desktopRef.current
+            const current = marqueeRef.current
+            marqueeRef.current = null
+            setMarquee(null)
+            if (!current.moved) setSelected(new Set())
+            try {
+              frame?.releasePointerCapture(event.pointerId)
+            } catch {
+              /* ignore */
+            }
+            return
+          }
           const current = dragRef.current
           const frame = desktopRef.current
           dragRef.current = null
@@ -1374,34 +1834,71 @@ window.__ModuleLoader__.load({
             const canvasY = event.clientY - rect.top + frame.scrollTop
             const dx = canvasX - current.startCanvasX
             const dy = canvasY - current.startCanvasY
-            const position = clampToCanvas(current.originX + dx, current.originY + dy, frame.clientWidth, canvasHeight)
-            const target = nearestSlot(position.x + ICON_W / 2, position.y + ICON_CENTER_Y, columns, rowCount)
-            const forbiddenFolder = current.kind === 'folder' && dropFolder && descendantFolders(library.folders, current.id).has(dropFolder)
-            if (dropFolder && !forbiddenFolder) {
-              store.move(current.kind, current.id, dropFolder)
-              showToast(t('toast.moved'))
-            } else if (!forbiddenFolder && target) {
-              const occupant = allEntries.find((entry) => {
-                if (entry.kind === current.kind && entry.id === current.id) return false
-                const slot = positionSlot(entry.x, entry.y, columns)
-                return Boolean(slot && slot.index === target.index)
-              })
-              if (occupant) {
-                store.setPositions([
-                  { kind: current.kind, id: current.id, x: target.x, y: target.y },
-                  { kind: occupant.kind, id: occupant.id, x: current.originX, y: current.originY },
-                ])
+            const group = current.group
+            const minX = Math.min(...group.map((item) => item.originX))
+            const maxX = Math.max(...group.map((item) => item.originX + ICON_W))
+            const minY = Math.min(...group.map((item) => item.originY))
+            const maxY = Math.max(...group.map((item) => item.originY + ICON_H))
+            const minDx = PAD - minX
+            const maxDx = frame.clientWidth - PAD - maxX
+            const minDy = PAD - minY
+            const maxDy = canvasHeight - PAD - maxY
+            const clampedDx = maxDx >= minDx ? clamp(dx, minDx, maxDx) : 0
+            const clampedDy = maxDy >= minDy ? clamp(dy, minDy, maxDy) : 0
+            if (group.length === 1) {
+              const anchor = group[0]
+              const position = clampToCanvas(anchor.originX + clampedDx, anchor.originY + clampedDy, frame.clientWidth, canvasHeight)
+              const target = nearestSlot(position.x + ICON_W / 2, position.y + ICON_CENTER_Y, columns, targetRows)
+              const forbiddenFolder = anchor.kind === 'folder' && dropFolder && descendantFolders(library.folders, anchor.id).has(dropFolder)
+              if (dropFolder && !forbiddenFolder) {
+                store.move(anchor.kind, anchor.id, dropFolder)
                 showToast(t('toast.moved'))
-              } else if (current.originX !== target.x || current.originY !== target.y) {
-                store.setPositions([{ kind: current.kind, id: current.id, x: target.x, y: target.y }])
-                showToast(t('toast.moved'))
+              } else if (!forbiddenFolder && target) {
+                const occupant = allEntries.find((entry) => {
+                  if (entry.kind === anchor.kind && entry.id === anchor.id) return false
+                  const slot = positionSlot(entry.x, entry.y, columns)
+                  return Boolean(slot && slot.index === target.index)
+                })
+                if (occupant) {
+                  store.setPositions([
+                    { kind: anchor.kind, id: anchor.id, x: target.x, y: target.y },
+                    { kind: occupant.kind, id: occupant.id, x: anchor.originX, y: anchor.originY },
+                  ])
+                  showToast(t('toast.moved'))
+                } else if (anchor.originX !== target.x || anchor.originY !== target.y) {
+                  store.setPositions([{ kind: anchor.kind, id: anchor.id, x: target.x, y: target.y }])
+                  showToast(t('toast.moved'))
+                }
+              }
+            } else {
+              const anchor = group.find((item) => item.key === current.anchorKey) || group[0]
+              const anchorPos = { x: anchor.originX + clampedDx, y: anchor.originY + clampedDy }
+              const target = nearestSlot(anchorPos.x + ICON_W / 2, anchorPos.y + ICON_CENTER_Y, columns, targetRows)
+              const anchorOrigin = positionSlot(anchor.originX, anchor.originY, columns)
+              if (anchorOrigin && target) {
+                const groupKeys = new Set(group.map((item) => item.key))
+                const occupied = new Set()
+                for (const entry of allEntries) {
+                  if (groupKeys.has(entryKey(entry))) continue
+                  const slot = positionSlot(entry.x, entry.y, columns)
+                  if (slot) occupied.add(slot.index)
+                }
+                const updates = findGroupPlacement(group, target.col - anchorOrigin.col, target.row - anchorOrigin.row, columns, occupied)
+                if (updates) {
+                  store.setPositions(updates)
+                  showToast(t('toast.moved'))
+                } else {
+                  showToast(t('toast.noRoom'))
+                }
+              } else {
+                showToast(t('toast.noRoom'))
               }
             }
           }
           setDrag(null)
           setDropFolder(null)
         },
-        [allEntries, columns, dropFolder, library.folders, rowCount, showToast],
+        [allEntries, canvasHeight, columns, dropFolder, library.folders, targetRows, showToast],
       )
 
       useEffect(() => {
@@ -1417,25 +1914,37 @@ window.__ModuleLoader__.load({
 
       useEffect(() => {
         const onKey = (event) => {
-          if (event.key !== 'Escape') return
-          if (menu) return setMenu(null)
-          if (renaming) {
-            renameRef.current = null
-            return setRenaming(null)
+          if (event.key === 'Escape') {
+            if (menu) return setMenu(null)
+            if (renaming) {
+              renameRef.current = null
+              return setRenaming(null)
+            }
+            if (confirmState) return setConfirmState(null)
+            if (picker.open) return closePicker()
+            if (selected.size > 0) return setSelected(new Set())
+            return
           }
-          if (confirmState) return setConfirmState(null)
-          if (picker.open) return closePicker()
-          if (selected) return setSelected(null)
+          if ((event.key === 'Delete' || event.key === 'Backspace') && library.activeTab === 'home') {
+            if (picker.open || renaming || confirmState) return
+            const target = event.target
+            if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return
+            if (selectedRef.current.size === 0) return
+            event.preventDefault()
+            deleteSelection()
+          }
         }
         document.addEventListener('keydown', onKey)
         return () => document.removeEventListener('keydown', onKey)
-      }, [menu, renaming, confirmState, picker.open, selected, closePicker])
+      }, [menu, renaming, confirmState, picker.open, selected, library.activeTab, deleteSelection, closePicker])
 
       const chain = useMemo(() => folderChain(library.folders, currentFolder), [library.folders, currentFolder])
       const contextEntry = useMemo(() => {
         if (!menu) return null
         return allEntries.find((entry) => entry.kind === menu.kind && entry.id === menu.key) || null
       }, [menu, allEntries])
+
+      const menuBulk = Boolean(contextEntry && selectedEntries.length > 1 && selected.has(entryKey(contextEntry)))
 
       const menuFolders = useMemo(() => {
         if (!contextEntry) return []
@@ -1519,17 +2028,19 @@ window.__ModuleLoader__.load({
       }
 
       const renderEntry = (entry) => {
-        const isDragging = drag && drag.kind === entry.kind && drag.id === entry.id
-        const x = isDragging ? drag.x : entry.x
-        const y = isDragging ? drag.y : entry.y
-        const isSelected = selected && selected.kind === entry.kind && selected.key === entry.id
+        const key = entryKey(entry)
+        const dragPosition = drag && drag.items ? drag.items[key] : null
+        const isDragging = Boolean(dragPosition)
+        const x = dragPosition ? dragPosition.x : entry.x
+        const y = dragPosition ? dragPosition.y : entry.y
+        const isSelected = selected.has(key)
         const isDropTarget = entry.kind === 'folder' && dropFolder === entry.id
         const isRenaming = renaming && renaming.kind === entry.kind && renaming.key === entry.id
         const folderAttrs = entry.kind === 'folder' ? { 'data-dsd-folder-id': entry.id } : {}
         return h(
           'div',
           {
-            key: `${entry.kind}:${entry.id}`,
+            key,
             className: 'dsd-item',
             role: 'button',
             tabIndex: 0,
@@ -1547,7 +2058,8 @@ window.__ModuleLoader__.load({
             onDoubleClick: () => openEntry(entry),
             onContextMenu: (event) => {
               event.preventDefault()
-              setSelected({ kind: entry.kind, key: entry.id })
+              const currentSelected = selectedRef.current
+              if (!currentSelected.has(key) || currentSelected.size === 1) setSelected(new Set([key]))
               setMenu({
                 kind: entry.kind,
                 key: entry.id,
@@ -1562,9 +2074,6 @@ window.__ModuleLoader__.load({
               } else if (event.key === 'F2') {
                 event.preventDefault()
                 startRename(entry)
-              } else if (event.key === 'Delete' && entry.kind === 'file') {
-                event.preventDefault()
-                removeItem(entry.path)
               }
             },
           },
@@ -1616,7 +2125,7 @@ window.__ModuleLoader__.load({
                     onClick: () => {
                       const folder = library.folders[currentFolder]
                       setCurrentFolder(folder ? folder.parentId ?? null : null)
-                      setSelected(null)
+                      setSelected(new Set())
                     },
                   },
                   icon('back', 14),
@@ -1632,7 +2141,7 @@ window.__ModuleLoader__.load({
                   type: 'button',
                   onClick: () => {
                     setCurrentFolder(null)
-                    setSelected(null)
+                    setSelected(new Set())
                   },
                 },
                 t('folder.root'),
@@ -1651,7 +2160,7 @@ window.__ModuleLoader__.load({
                           type: 'button',
                           onClick: () => {
                             setCurrentFolder(folder.id)
-                            setSelected(null)
+                            setSelected(new Set())
                           },
                         },
                         folder.name,
@@ -1660,6 +2169,14 @@ window.__ModuleLoader__.load({
               ),
             ),
             h('span', { className: 'dsd-count' }, t('status.count', { count: Object.keys(library.items).length })),
+            selectedEntries.length > 1
+              ? h(
+                  'button',
+                  { className: 'dsd-selection-pill', type: 'button', onClick: () => deleteSelection(), title: t('action.removeSelected', { count: selectedEntries.length }) },
+                  icon('trash', 12),
+                  h('span', null, t('selection.count', { count: selectedEntries.length })),
+                )
+              : null,
             h('div', { className: 'dsd-toolbar-spacer' }),
             h(
               'div',
@@ -1688,13 +2205,15 @@ window.__ModuleLoader__.load({
               {
                 className: 'dsd-desktop',
                 ref: desktopRef,
+                onPointerDown: onDesktopPointerDown,
                 onPointerMove,
                 onPointerUp,
                 onPointerCancel: onPointerUp,
+                onContextMenu: (event) => event.preventDefault(),
                 onClick: (event) => {
                   const target = event.target
                   if (target === event.currentTarget || (target && target.classList && target.classList.contains('dsd-desktop-canvas'))) {
-                    setSelected(null)
+                    setSelected(new Set())
                     setMenu(null)
                   }
                 },
@@ -1702,6 +2221,7 @@ window.__ModuleLoader__.load({
               h(
                 'div',
                 { className: 'dsd-desktop-canvas', style: { height: `${canvasHeight}px` } },
+                marquee ? h('div', { className: 'dsd-marquee', style: { left: `${marquee.left}px`, top: `${marquee.top}px`, width: `${marquee.width}px`, height: `${marquee.height}px` } }) : null,
                 drag && dropSlot ? h('div', { className: 'dsd-slot-ghost', style: { left: `${dropSlot.x}px`, top: `${dropSlot.y}px` } }) : null,
                 entries.map(renderEntry),
                 allEntries.length === 0
@@ -1913,7 +2433,34 @@ window.__ModuleLoader__.load({
         ),
         activePath && activeItem ? renderDoc() : renderHome(),
         picker.open ? renderPicker() : null,
-        menu && contextEntry
+        menuBulk
+          ? h(
+              'div',
+              { className: 'dsd-menu', style: { left: `${menu.x}px`, top: `${menu.y}px` }, role: 'menu' },
+              h('div', { className: 'dsd-menu-title' }, t('selection.count', { count: selectedEntries.length })),
+              h(
+                'button',
+                { className: 'dsd-menu-item', type: 'button', role: 'menuitem', 'data-danger': true, onClick: () => deleteSelection() },
+                icon('trash', 14),
+                h('span', null, t('action.removeSelected', { count: selectedEntries.length })),
+              ),
+              h('div', { className: 'dsd-menu-sep' }),
+              h(
+                'button',
+                {
+                  className: 'dsd-menu-item',
+                  type: 'button',
+                  role: 'menuitem',
+                  onClick: () => {
+                    setSelected(new Set())
+                    setMenu(null)
+                  },
+                },
+                icon('close', 14),
+                h('span', null, t('action.deselect')),
+              ),
+            )
+          : menu && contextEntry
           ? h(
               'div',
               { className: 'dsd-menu', style: { left: `${menu.x}px`, top: `${menu.y}px` }, role: 'menu' },
@@ -1985,7 +2532,7 @@ window.__ModuleLoader__.load({
                   'div',
                   { className: 'dsd-modal-actions' },
                   h('button', { className: 'dsd-btn', type: 'button', onClick: () => setConfirmState(null) }, h('span', null, t('confirm.cancel'))),
-                  h('button', { className: 'dsd-btn', type: 'button', 'data-danger': true, onClick: () => confirmState.onConfirm() }, h('span', null, t('confirm.delete'))),
+                  h('button', { className: 'dsd-btn', type: 'button', 'data-danger': true, onClick: () => confirmState.onConfirm() }, h('span', null, confirmState.confirmLabel || t('confirm.delete'))),
                 ),
               ),
             )

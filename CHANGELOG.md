@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.2 — 2026-10-30
+
+Marquee selection, a first-screen-aware desktop, and rendered charts.
+
+- Right-drag on empty desktop space to draw a selection box. Selected icons can be dragged as a group and removed with `Delete` / `Backspace`, the toolbar selection pill, or the right-click menu.
+- Icons can be placed anywhere in the visible first screen. The desktop grows and scrolls only after the visible slots are full; this repeats for every subsequent row.
+- Fenced `chart` blocks (`chart`, `chart:bar`, `chart:line`, `chart:area`, `chart:pie`, `chart:donut`) render to SVG from JSON or simple `label,value` lines. Rendering is local; no external scripts or arbitrary code execution.
+- Added a chart screenshot and chart documentation.
+- Fixed the confirm dialog's Cancel label using an untranslated key.
+
 ## 0.2.1 — 2026-10-30
 
 A fixed-grid desktop instead of free-floating icons.

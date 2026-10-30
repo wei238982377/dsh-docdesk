@@ -20,6 +20,7 @@ import path from 'node:path'
 
 const LIST_ROUTE = '/api/dsh-docdesk/list'
 const READ_ROUTE = '/api/dsh-docdesk/read'
+const RESOLVE_ROUTE = '/api/dsh-docdesk/resolve'
 
 const MAX_FILES = 3000
 const MAX_DIRS_PER_ROOT = 4000
@@ -442,6 +443,97 @@ async function handleRead(ctx, request, response) {
   })
 }
 
+/* --------------------------------------------------------------- presented */
+
+function coordinate(value) {
+  return value !== null && /^\d+$/u.test(value) && Number.isSafeInteger(Number(value)) ? Number(value) : undefined
+}
+
+function isPresentedData(value) {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
+  const { turn, callId, files } = value
+  return Number.isSafeInteger(turn) && turn >= 1 && typeof callId === 'string' && Array.isArray(files)
+}
+
+function isPresentedFile(value) {
+  return typeof value === 'object' && value !== null && typeof value.path === 'string' && value.path.trim() !== ''
+}
+
+/**
+ * Resolve a presented file's coordinate (sessionId, seq, index) to an absolute
+ * path. The file action card receives only this coordinate, never the path, so
+ * the browser asks the Host to read the durable event and map the path through
+ * the same workspace filesystem used by the rest of the Host.
+ */
+async function handleResolve(ctx, request, response) {
+  if (!isAllowed(ctx, request)) {
+    sendJson(response, 403, { error: 'forbidden' })
+    return
+  }
+  const url = requestUrl(request)
+  const sessionId = url?.searchParams.get('sessionId')
+  const seq = coordinate(url?.searchParams.get('seq') ?? null)
+  const index = coordinate(url?.searchParams.get('index') ?? null)
+  if (!sessionId || seq === undefined || index === undefined) {
+    sendJson(response, 400, { error: 'invalid-coordinates' })
+    return
+  }
+  let sessionQuery
+  try {
+    sessionQuery = ctx.get('sessionQuery', false)
+  } catch {
+    sessionQuery = undefined
+  }
+  if (!sessionQuery || typeof sessionQuery.readEvent !== 'function') {
+    sendJson(response, 503, { error: 'session-query-unavailable' })
+    return
+  }
+  const signal = AbortSignal.timeout(8000)
+  let window
+  try {
+    window = await sessionQuery.readEvent({ sessionId, seq, before: 0, after: 0 }, signal)
+  } catch {
+    sendJson(response, 404, { error: 'event-not-found' })
+    return
+  }
+  const target = window?.target
+  const file = target?.type === 'deliverables/presented' && isPresentedData(target.data) ? target.data.files[index] : undefined
+  if (!isPresentedFile(file)) {
+    sendJson(response, 404, { error: 'presented-file-not-found' })
+    return
+  }
+  let workingDirectory
+  try {
+    workingDirectory = ctx.get('workingDirectory', false)
+  } catch {
+    workingDirectory = undefined
+  }
+  const root = window?.session?.cwd || workingDirectory?.defaultDirectory
+  if (!root) {
+    sendJson(response, 503, { error: 'workspace-unavailable' })
+    return
+  }
+  let absolutePath
+  try {
+    let workspaceFiles
+    try {
+      workspaceFiles = ctx.get('workspaceFiles', false)
+    } catch {
+      workspaceFiles = undefined
+    }
+    if (workspaceFiles && typeof workspaceFiles.stat === 'function') {
+      const stat = await workspaceFiles.stat({ sessionId, workspaceRoot: root }, file.path, signal)
+      absolutePath = stat.absolutePath
+    } else {
+      absolutePath = path.isAbsolute(file.path) ? file.path : path.resolve(root, file.path)
+    }
+  } catch {
+    sendJson(response, 404, { error: 'file-not-found' })
+    return
+  }
+  sendJson(response, 200, { path: absolutePath, name: path.basename(absolutePath) })
+}
+
 /* ------------------------------------------------------------------ apply */
 
 export function apply(ctx) {
@@ -467,6 +559,11 @@ export function apply(ctx) {
         kind: 'exact',
         path: READ_ROUTE,
         handler: (request, response) => handleRead(ctx, request, response),
+      }),
+      webServer.register({
+        kind: 'exact',
+        path: RESOLVE_ROUTE,
+        handler: (request, response) => handleResolve(ctx, request, response),
       }),
     ]
     return () => {

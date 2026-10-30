@@ -1,7 +1,7 @@
 {
   "name": "dsh-docdesk",
-  "version": "0.1.0",
-  "description": "A desktop-style library for Markdown documents created in DeepSeek Harness: free icon placement, folders, renaming and instant preview. · DSH 资料区：把生成的 Markdown 文档收进一个可自由拖放、归类、重命名的桌面。",
+  "version": "0.2.0",
+  "description": "An add-only Markdown library for DeepSeek Harness: pick documents from workspaces, arrange icons freely inside a bounded desktop, group them into folders, and read them full-screen with browser-style tabs. · DSH 资料区：主动挑选 Markdown 文档，在固定桌面框内自由摆放、归类，并用标签页全屏阅读。",
   "type": "module",
   "main": "index.js",
   "exports": {

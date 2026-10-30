@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "Materials",
-    "description": "A desktop-style library for the Markdown documents DSH creates: drag icons anywhere, group them into folders, rename files and folders, and preview any document without searching old sessions."
+    "description": "An add-only Markdown library for DeepSeek Harness: pick documents from your workspaces, arrange icons freely inside a bounded desktop, group them into folders, rename them, open them full-screen with browser-style tabs, and collapse the sidebar from a middle-edge handle."
   }
 }

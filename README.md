@@ -1,35 +1,38 @@
 # dsh-docdesk · 资料区
 
-A desktop-style library for the Markdown documents that DeepSeek Harness creates. Instead of hunting through old sessions for the report an agent just wrote, open **资料区** in the sidebar: every Markdown file from your workspaces is already there, laid out like a desktop.
+An **add-only** Markdown library for DeepSeek Harness. The library starts empty: you pick the documents that matter from your workspaces, place their icons freely inside a bounded desktop, and read them full-screen with browser-style tabs.
 
 ![Materials panel](docs/screenshots/panel.png)
 
 ## Why
 
-DSH agents write notes, plans, research and reports as `.md` files. The files stay in the workspace, but the conversation that produced them scrolls away. 资料区 collects those documents in one place and lets you arrange them the way you work: drag an icon anywhere, group related documents into folders, rename them, and read them without leaving the current session.
+DSH agents write notes, plans, research and reports as `.md` files. The files stay in the workspace, but the conversation that produced them scrolls away. 资料区 keeps the documents you choose in one place without turning your whole workspace into a list:
 
-The plugin is deliberately read-only. It never moves, renames or deletes anything on disk.
+- Nothing is imported automatically. You decide what enters the library.
+- Icons behave like objects on a desktop: they stay inside the desktop frame, but you place them wherever you want.
+- A document opens as a full-screen reader with tabs, not a cramped side drawer.
+
+The plugin never moves, renames or deletes anything on disk.
 
 ## Features
 
-- **Free icon placement.** Drag any icon to any position on the canvas. Positions survive page reloads and browser restarts.
-- **Virtual folders.** Create as many folders as you like and drag documents onto a folder icon to file them. Folder badges show how many items are inside.
-- **Rename files and folders.** Use the context menu or press <kbd>F2</kbd>. Renaming changes the label in the library, not the file on disk.
-- **Scrollable canvas.** The desktop grows with your library; long lists scroll vertically.
-- **Read-only Markdown preview.** Double-click a document to render it in a side panel: headings, lists, quotes, links and fenced code blocks.
-- **Search.** Find a document across the whole library by label or path.
-- **Hide and restore.** Remove noisy files from the view without touching the disk, then restore them from the “Removed” popover.
-- **Tidy.** Re-arrange the current page into a clean grid with one click.
-- **Bilingual UI.** Chinese and English follow the Harness locale.
-- **Theme-aware.** Colors come from the host theme tokens, so the panel follows light/dark mode.
+- **Add files explicitly.** The **Add files** button opens a workspace picker with search and multi-select. Documents already in the library are marked and cannot be added twice.
+- **Add from a file card.** A delivered Markdown file card gains an **Add to library** action; right-clicking the card opens a small menu with the same action. If your host does not render deliverable file cards, the picker is always available.
+- **A bounded free-form desktop.** Icons are clamped to the visible desktop frame when dragged. New icons are placed on a sunflower spiral with collision avoidance, so they do not form a rigid row.
+- **Virtual folders.** Create folders and drag documents onto a folder icon. Folder badges show how many items are inside. Folders can be nested.
+- **Rename anything.** Use the context menu or <kbd>F2</kbd>. The label in the library changes; the file on disk does not.
+- **Full-screen reading with tabs.** Double-click a document to open it full-screen. The top row is a browser-style tab strip with a Home tab and one tab per open document; tabs can be switched and closed.
+- **Sidebar handle.** A slim handle at the middle of the left edge collapses the sidebar and stays available to bring it back. It uses the host's own sidebar toggle, so it collapses to the host's icon rail.
+- **Search and remove.** Filter the current page by label or path; remove an entry from the library without touching the file.
+- **Bilingual UI and theme-aware styling.** Chinese and English follow the Harness locale; colors come from the host theme tokens.
 
-![Sidebar entry](docs/screenshots/sidebar.png)
+![Add files picker](docs/screenshots/picker.png)
 
 ## Install
 
 ### From the plugin market
 
-Once the entry is merged into [awesome-dsh-plugin](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin), open **Plugins → Discover** in the Harness and search for **资料区** or **Materials**, then install it. The market installs straight from this repository, so no npm publication is required.
+Once the entry is merged into [awesome-dsh-plugin](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin), open **Plugins → Discover**, search for **资料区** or **Materials**, and install it. The market installs from this repository; npm publication is optional.
 
 ### From GitHub
 
@@ -37,62 +40,67 @@ Once the entry is merged into [awesome-dsh-plugin](https://github.com/awesome-ds
 dsh plugin --profile <your-profile> add https://github.com/wei238982377/dsh-docdesk
 ```
 
-In the DSH Desktop app you can also open **Plugins → Add** and paste the repository URL. The bundle is a source package: the root `package.json` declares `dsh.bundle` and `cordis.patch.yml`, which is all the host needs.
+In DSH Desktop you can also open **Plugins → Add** and paste the repository URL. The bundle is a source package: the root `package.json` declares `dsh.bundle` and `cordis.patch.yml`.
 
-After installation, refresh the browser tab once. New client plugins are loaded on page load; a full host restart is not normally required.
+After installation, refresh the browser tab once so the client plugin loads.
 
 ## Use
 
-- Click **资料区** in the left sidebar to open the panel.
-- Drag a document icon to move it. Positions are saved automatically.
-- **新建文件夹** creates a folder in the current view. Type a name and press Enter.
-- Drag a document onto a folder icon to move it inside. Double-click the folder to open it; use the breadcrumb or the back arrow to return.
-- Right-click an icon for **Open, Rename, Copy path, Move to folder** and **Remove from library**. Folders additionally offer **Delete folder**; deleting a folder moves its documents back to the parent, it never deletes files.
-- Press <kbd>F2</kbd> to rename the selected item and <kbd>Delete</kbd> to remove a selected document from the library.
-- Double-click a document to open its preview. The preview is read-only.
-- The toolbar’s **Tidy** button re-arranges the current page. **Refresh** rescans the workspaces.
+- Open **资料区** in the left sidebar.
+- Click **Add files** (top-right). Search if needed, tick one or more documents, then click **Add selected**.
+- Drag an icon to move it. It is clamped inside the desktop frame; positions persist.
+- **New folder** creates a folder in the current page. Drag a document onto a folder icon to file it; double-click the folder to open it.
+- Right-click an icon for **Open, Rename, Copy path, Move to folder** and **Remove from library**. Folders also offer **Delete folder**, which moves their documents back to the parent instead of deleting files.
+- Double-click a document to open it full-screen. Use the **资料区** tab to return to the desktop, click another tab to switch documents, and use the × on a tab to close it.
+- The middle-left handle toggles the sidebar. The host collapses it to its icon rail; click the handle again to restore it.
 
-![Folder view](docs/screenshots/folder.png)
+![Full-screen document with tabs](docs/screenshots/document.png)
 
 ## How it works
 
 The bundle has two halves:
 
-- **Host half** (`index.js`) scans every registered workspace, the profile’s default working directory, and the working directories of live agents for `.md`, `.markdown` and `.mdx` files. It exposes two read-only JSON endpoints:
-  - `GET /api/dsh-docdesk/list` — the scanned document list
-  - `GET /api/dsh-docdesk/read?path=<absolute path>` — one document’s content
-- **Client half** (`client.js`) registers the **资料区** sidebar entry and the `main` panel page. It renders the canvas, handles drag-and-drop, folders, renaming, search and the Markdown preview.
+- **Host half** (`index.js`) scans registered workspaces, the profile's default working directory and live agent working directories for `.md`, `.markdown` and `.mdx` files. It exposes three read-only JSON endpoints:
+  - `GET /api/dsh-docdesk/list` — candidate files for the picker
+  - `GET /api/dsh-docdesk/read?path=<absolute path>` — one document's content
+  - `GET /api/dsh-docdesk/resolve?sessionId=…&seq=…&index=…` — resolve a delivered file card's durable coordinates to a path
+- **Client half** (`client.js`) registers the **资料区** sidebar entry, the panel, the middle-edge sidebar handle and the delivered-file action. It renders the desktop, the picker, folders and the tabbed reader.
 
-Security and limits:
+Data and limits:
 
-- Both endpoints sit behind the same loopback / paired-device fence used by the bundled management pages, and reject requests carrying forwarding headers.
-- Reads are confined to the scanned roots and to Markdown extensions; a preview is capped at 2 MB.
-- The scan skips `node_modules`, `.git`, build output, virtual environments and other heavy directories. Current caps are 3,000 documents, 4,000 directories per workspace, 16,000 directories in total and 6 levels of depth.
-- The layout (positions, folders, labels and hidden items) is stored in the browser under `dsh-docdesk.layout.v1`. It is per browser profile; the Markdown files themselves are the shared source of truth.
-- If a document is moved or deleted outside the plugin, the icon disappears on the next scan. The stored layout entry is kept in case the file comes back.
+- The library (documents, display names, folders, positions, open tabs) is stored in the browser under `dsh-docdesk.library.v2`; it is per browser profile and is not synced between devices.
+- The Markdown files remain the source of truth. If a file is moved or deleted outside the plugin, opening it reports the error and lets you remove the entry.
+- Both the list and read endpoints sit behind the same loopback / paired-device fence used by the bundled management pages and reject forwarding headers. Reads are confined to scanned roots and Markdown extensions; a preview is capped at 2 MB.
+- The scan skips `node_modules`, `.git`, build output and virtual environments. Current caps are 3,000 documents, 4,000 directories per workspace, 16,000 directories in total and 6 levels of depth.
+- The sidebar handle calls the host's `layout.toggleSidebar()`. The collapsed state is the host's rail, not a custom zero-width column.
 
 ## Screenshots
 
-| Panel | Folder | Preview |
+| Panel | Add files | Full-screen document |
 | --- | --- | --- |
-| ![Panel](docs/screenshots/panel.png) | ![Folder](docs/screenshots/folder.png) | ![Preview](docs/screenshots/preview.png) |
+| ![Panel](docs/screenshots/panel.png) | ![Add files](docs/screenshots/picker.png) | ![Document](docs/screenshots/document.png) |
+
+| Folder | Sidebar entry |
+| --- | --- |
+| ![Folder](docs/screenshots/folder.png) | ![Sidebar entry](docs/screenshots/sidebar.png) |
 
 ## Project layout
 
 ```text
 dsh-docdesk/
-├── index.js              # Host half: workspace scan + read-only endpoints
-├── client.js             # Browser module: sidebar entry and desktop panel
+├── index.js              # Host half: scan, read, resolve delivered-file coordinates
+├── client.js             # Browser module: sidebar entry, panel, tabs, picker, file action
 ├── cordis.patch.yml      # Bundle patch that mounts the plugin row
 ├── package.json          # Manifest: dsh.bundle, dsh.client, exports, files
 ├── locale/
 │   ├── en.json           # Plugin manager metadata (English)
 │   └── zh.json           # Plugin manager metadata (Chinese)
 ├── icon.svg              # Bundle icon (used by the plugin manager)
+├── screenshots.json      # Market screenshot list
 ├── docs/
 │   ├── icon.png          # Raster icon used by the market listing
 │   ├── market-entry.yml  # Registry entry submitted to awesome-dsh-plugin
-│   └── screenshots/      # README screenshots
+│   └── screenshots/      # README and market screenshots
 ├── CHANGELOG.md
 ├── LICENSE
 ├── README.md
@@ -102,8 +110,6 @@ dsh-docdesk/
 ## Development
 
 There is no build step. `index.js` is a plain ESM Cordis plugin; `client.js` is a browser module registered through `window.__ModuleLoader__.load` with the package name as its id. Edit either file, then refresh the browser tab. For a host-half change, reinstall the bundle (or restart the host) so the new module generation is loaded.
-
-To test a local checkout:
 
 ```sh
 dsh plugin --profile <your-profile> add /absolute/path/to/dsh-docdesk

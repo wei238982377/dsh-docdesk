@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.1 — 2026-10-30
+
+A fixed-grid desktop instead of free-floating icons.
+
+- Icons snap to fixed desktop slots; every position is aligned to a 96 × 104 grid.
+- Two icons can never share a slot: dropping onto an occupied slot swaps the two icons, and new icons fill the first free slot.
+- When there are more icons than fit in the visible frame, the desktop scrolls vertically instead of overlapping.
+- Resizing the panel reflows the grid to the new column count without overlaps.
+- Removed the sunflower-spiral placement and free-form drag clamp.
+
 ## 0.2.0 — 2026-10-30
 
 Reworked the library around explicit adds and browser-style reading.

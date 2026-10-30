@@ -1,7 +1,7 @@
 {
   "name": "dsh-docdesk",
-  "version": "0.2.0",
-  "description": "An add-only Markdown library for DeepSeek Harness: pick documents from workspaces, arrange icons freely inside a bounded desktop, group them into folders, and read them full-screen with browser-style tabs. · DSH 资料区：主动挑选 Markdown 文档，在固定桌面框内自由摆放、归类，并用标签页全屏阅读。",
+  "version": "0.2.1",
+  "description": "An add-only Markdown library for DeepSeek Harness: pick documents from workspaces, place icons on a fixed non-overlapping desktop grid, group them into folders, and read them full-screen with browser-style tabs. · DSH 资料区：主动挑选 Markdown 文档，在固定网格桌面内对齐摆放、归类，并用标签页全屏阅读。",
   "type": "module",
   "main": "index.js",
   "exports": {

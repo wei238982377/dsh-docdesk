@@ -1,6 +1,6 @@
 # dsh-docdesk · 资料区
 
-An **add-only** Markdown library for DeepSeek Harness. The library starts empty: you pick the documents that matter from your workspaces, place their icons freely inside a bounded desktop, and read them full-screen with browser-style tabs.
+An **add-only** Markdown library for DeepSeek Harness. The library starts empty: you pick the documents that matter from your workspaces, place their icons on a fixed non-overlapping desktop grid, and read them full-screen with browser-style tabs.
 
 ![Materials panel](docs/screenshots/panel.png)
 
@@ -9,7 +9,7 @@ An **add-only** Markdown library for DeepSeek Harness. The library starts empty:
 DSH agents write notes, plans, research and reports as `.md` files. The files stay in the workspace, but the conversation that produced them scrolls away. 资料区 keeps the documents you choose in one place without turning your whole workspace into a list:
 
 - Nothing is imported automatically. You decide what enters the library.
-- Icons behave like objects on a desktop: they stay inside the desktop frame, but you place them wherever you want.
+- Icons sit on a fixed desktop grid. Two icons never share a slot; the desktop scrolls when there are more icons than fit.
 - A document opens as a full-screen reader with tabs, not a cramped side drawer.
 
 The plugin never moves, renames or deletes anything on disk.
@@ -18,7 +18,7 @@ The plugin never moves, renames or deletes anything on disk.
 
 - **Add files explicitly.** The **Add files** button opens a workspace picker with search and multi-select. Documents already in the library are marked and cannot be added twice.
 - **Add from a file card.** A delivered Markdown file card gains an **Add to library** action; right-clicking the card opens a small menu with the same action. If your host does not render deliverable file cards, the picker is always available.
-- **A bounded free-form desktop.** Icons are clamped to the visible desktop frame when dragged. New icons are placed on a sunflower spiral with collision avoidance, so they do not form a rigid row.
+- **A fixed, non-overlapping desktop grid.** Icons snap to slot positions inside the desktop frame. Dropping one onto an occupied slot swaps the two icons, and new icons fill the first free slot. When there are more icons than fit, the desktop scrolls instead of stacking icons on top of each other.
 - **Virtual folders.** Create folders and drag documents onto a folder icon. Folder badges show how many items are inside. Folders can be nested.
 - **Rename anything.** Use the context menu or <kbd>F2</kbd>. The label in the library changes; the file on disk does not.
 - **Full-screen reading with tabs.** Double-click a document to open it full-screen. The top row is a browser-style tab strip with a Home tab and one tab per open document; tabs can be switched and closed.
@@ -48,7 +48,7 @@ After installation, refresh the browser tab once so the client plugin loads.
 
 - Open **资料区** in the left sidebar.
 - Click **Add files** (top-right). Search if needed, tick one or more documents, then click **Add selected**.
-- Drag an icon to move it. It is clamped inside the desktop frame; positions persist.
+- Drag an icon to move it; it snaps to a fixed slot. Dropping it onto an occupied slot swaps the two icons. New icons fill the first free slot. If the desktop has more icons than fit, scroll vertically.
 - **New folder** creates a folder in the current page. Drag a document onto a folder icon to file it; double-click the folder to open it.
 - Right-click an icon for **Open, Rename, Copy path, Move to folder** and **Remove from library**. Folders also offer **Delete folder**, which moves their documents back to the parent instead of deleting files.
 - Double-click a document to open it full-screen. Use the **资料区** tab to return to the desktop, click another tab to switch documents, and use the × on a tab to close it.

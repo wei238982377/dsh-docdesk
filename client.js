@@ -13,6 +13,9 @@ window.__ModuleLoader__.load({
     const STORAGE_KEY = 'dsh-docdesk.library.v2'
     const ICON_W = 88
     const ICON_H = 104
+    const ICON_CENTER_Y = 44
+    const CELL_W = 96
+    const CELL_H = 104
     const PAD = 10
 
     /* ------------------------------------------------------------- locale */
@@ -491,63 +494,37 @@ window.__ModuleLoader__.load({
       return `${base} ${Date.now().toString(36)}`
     }
 
-    function frameLimits(frame) {
-      return {
-        minX: PAD,
-        minY: PAD,
-        maxX: Math.max(PAD, frame.width - ICON_W - PAD),
-        maxY: Math.max(PAD, frame.height - ICON_H - PAD),
-      }
+    function gridColumns(width) {
+      return Math.max(1, Math.floor((width - PAD * 2) / CELL_W))
     }
 
-    function clampPosition(x, y, frame) {
-      const limits = frameLimits(frame)
-      return {
-        x: clamp(Number.isFinite(x) ? x : limits.minX, limits.minX, limits.maxX),
-        y: clamp(Number.isFinite(y) ? y : limits.minY, limits.minY, limits.maxY),
-      }
+    function slotPosition(index, columns) {
+      const col = index % columns
+      const row = Math.floor(index / columns)
+      return { index, col, row, x: PAD + col * CELL_W, y: PAD + row * CELL_H }
     }
 
-    function collides(candidate, occupied) {
-      return occupied.some(
-        (rect) =>
-          candidate.x < rect.x + rect.w + 8 &&
-          candidate.x + ICON_W + 8 > rect.x &&
-          candidate.y < rect.y + rect.h + 8 &&
-          candidate.y + ICON_H + 8 > rect.y,
-      )
+    function positionSlot(x, y, columns) {
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return null
+      const col = Math.round((x - PAD) / CELL_W)
+      const row = Math.round((y - PAD) / CELL_H)
+      if (col < 0 || col >= columns || row < 0) return null
+      const snappedX = PAD + col * CELL_W
+      const snappedY = PAD + row * CELL_H
+      if (Math.abs(x - snappedX) > 0.6 || Math.abs(y - snappedY) > 0.6) return null
+      return { index: row * columns + col, col, row, x: snappedX, y: snappedY }
     }
 
-    /**
-     * Find a free desktop position on a sunflower spiral. The result is
-     * deliberately not a row or a grid: icons feel scattered like objects on a
-     * real desktop while still avoiding overlap whenever the frame has room.
-     */
-    function scatterPosition(frame, occupied) {
-      const limits = frameLimits(frame)
-      const centerX = (limits.minX + limits.maxX) / 2
-      const centerY = (limits.minY + limits.maxY) / 2
-      const radius = Math.max(16, Math.min((limits.maxX - limits.minX) / 2, (limits.maxY - limits.minY) / 2))
-      const goldenAngle = Math.PI * (3 - Math.sqrt(5))
-      for (let index = 0; index < 640; index += 1) {
-        const angle = index * goldenAngle
-        const distance = Math.sqrt((index + 0.5) / 640) * radius
-        const candidate = {
-          x: clamp(centerX + Math.cos(angle) * distance - ICON_W / 2, limits.minX, limits.maxX),
-          y: clamp(centerY + Math.sin(angle) * distance - ICON_H / 2, limits.minY, limits.maxY),
-        }
-        if (!collides(candidate, occupied)) return candidate
-      }
-      for (let index = 0; index < 48; index += 1) {
-        const candidate = {
-          x: limits.minX + Math.random() * (limits.maxX - limits.minX),
-          y: limits.minY + Math.random() * (limits.maxY - limits.minY),
-        }
-        if (!collides(candidate, occupied)) return candidate
-      }
+    function nearestSlot(x, y, columns, rows) {
+      const col = clamp(Math.round((x - PAD) / CELL_W), 0, columns - 1)
+      const row = clamp(Math.round((y - PAD) / CELL_H), 0, Math.max(0, rows - 1))
+      return slotPosition(row * columns + col, columns)
+    }
+
+    function clampToCanvas(x, y, width, height) {
       return {
-        x: clamp(centerX - ICON_W / 2, limits.minX, limits.maxX),
-        y: clamp(centerY - ICON_H / 2, limits.minY, limits.maxY),
+        x: clamp(Number.isFinite(x) ? x : PAD, PAD, Math.max(PAD, width - ICON_W - PAD)),
+        y: clamp(Number.isFinite(y) ? y : PAD, PAD, Math.max(PAD, height - ICON_H - PAD)),
       }
     }
 
@@ -788,7 +765,9 @@ window.__ModuleLoader__.load({
 .dsd-search input:focus { border-color:var(--dsw-alias-state-business-primary,#2f6fed); }
 .dsd-search input::placeholder { color:var(--dsw-alias-label-secondary,#6b6b76); opacity:.8; }
 .dsd-desktop-wrap { flex:1; min-height:0; display:flex; padding:0 10px 10px; }
-.dsd-desktop { position:relative; flex:1; min-height:0; overflow:hidden; border-radius:12px; border:1px solid var(--dsw-alias-border-l1,#e4e4ea); background-color:color-mix(in srgb, var(--dsw-alias-bg-layer-1,#f6f6f8) 62%, transparent); background-image:radial-gradient(circle, color-mix(in srgb, var(--dsw-alias-border-l2,#d0d0d8) 72%, transparent) 1px, transparent 1px); background-size:22px 22px; background-position:7px 7px; }
+.dsd-desktop { position:relative; flex:1; min-height:0; overflow:auto; border-radius:12px; border:1px solid var(--dsw-alias-border-l1,#e4e4ea); scrollbar-width:thin; scrollbar-gutter:stable; }
+.dsd-desktop-canvas { position:relative; width:100%; min-height:100%; background-color:color-mix(in srgb, var(--dsw-alias-bg-layer-1,#f6f6f8) 62%, transparent); background-image:radial-gradient(circle, color-mix(in srgb, var(--dsw-alias-border-l2,#d0d0d8) 72%, transparent) 1px, transparent 1px); background-size:22px 22px; background-position:7px 7px; }
+.dsd-slot-ghost { position:absolute; width:88px; height:104px; border-radius:10px; border:1px dashed var(--dsw-alias-state-business-primary,#2f6fed); background:color-mix(in srgb, var(--dsw-alias-state-business-primary,#2f6fed) 9%, transparent); pointer-events:none; z-index:1; }
 .dsd-item { position:absolute; width:88px; box-sizing:border-box; padding:5px 3px 6px; border-radius:10px; border:1px solid transparent; display:flex; flex-direction:column; align-items:center; gap:5px; cursor:default; user-select:none; touch-action:none; }
 .dsd-item[data-pending=true] { opacity:0; }
 .dsd-item:hover { background:color-mix(in srgb, var(--dsw-alias-label-primary,#1b1b1f) 6%, transparent); }
@@ -1016,12 +995,13 @@ window.__ModuleLoader__.load({
     function PanelPage() {
       const library = useLibrary()
       const [currentFolder, setCurrentFolder] = useState(null)
-      const [frame, setFrame] = useState({ width: 0, height: 0 })
+      const [viewport, setViewport] = useState({ width: 0, height: 0 })
       const [selected, setSelected] = useState(null)
       const [menu, setMenu] = useState(null)
       const [renaming, setRenaming] = useState(null)
       const [drag, setDrag] = useState(null)
       const [dropFolder, setDropFolder] = useState(null)
+      const [dropSlot, setDropSlot] = useState(null)
       const [picker, setPicker] = useState({ open: false, status: 'idle', files: [], roots: [], truncated: false, partial: false, error: null, query: '', selected: new Set() })
       const [doc, setDoc] = useState({ status: 'idle' })
       const [docReload, setDocReload] = useState(0)
@@ -1037,6 +1017,7 @@ window.__ModuleLoader__.load({
       const pickerToken = useRef(0)
       const docCache = useRef(new Map())
       const docAbort = useRef(null)
+      const prevColumns = useRef(0)
 
       const showToast = useCallback((text) => {
         window.clearTimeout(toastTimer.current)
@@ -1061,8 +1042,9 @@ window.__ModuleLoader__.load({
         const element = desktopRef.current
         if (!element) return undefined
         const measure = () => {
-          const rect = element.getBoundingClientRect()
-          if (rect.width > 0 && rect.height > 0) setFrame({ width: rect.width, height: rect.height })
+          const width = element.clientWidth
+          const height = element.clientHeight
+          if (width > 0 && height > 0) setViewport((previous) => (previous.width === width && previous.height === height ? previous : { width, height }))
         }
         measure()
         const observer = new ResizeObserver(measure)
@@ -1070,15 +1052,27 @@ window.__ModuleLoader__.load({
         return () => observer.disconnect()
       }, [library.activeTab])
 
+      useEffect(() => {
+        if (desktopRef.current) desktopRef.current.scrollTop = 0
+      }, [currentFolder])
+
       const allEntries = useMemo(() => {
         const folders = Object.values(library.folders)
           .filter((folder) => (folder.parentId ?? null) === currentFolder)
-          .map((folder) => ({ kind: 'folder', key: folder.id, id: folder.id, name: folder.name, x: folder.x, y: folder.y, count: countChildren(library, folder.id) }))
+          .map((folder) => ({ kind: 'folder', key: folder.id, id: folder.id, name: folder.name, x: folder.x, y: folder.y, count: countChildren(library, folder.id), addedAt: 0 }))
         const files = Object.values(library.items)
           .filter((item) => (item.folderId ?? null) === currentFolder)
-          .map((item) => ({ kind: 'file', key: item.path, id: item.path, name: item.name || basename(item.path), path: item.path, x: item.x, y: item.y }))
+          .map((item) => ({ kind: 'file', key: item.path, id: item.path, name: item.name || basename(item.path), path: item.path, x: item.x, y: item.y, addedAt: item.addedAt || 0 }))
         return [...folders, ...files]
       }, [library, currentFolder])
+
+      const columns = Math.max(1, gridColumns(viewport.width))
+      const maxRow = allEntries.reduce((max, entry) => {
+        const slot = positionSlot(entry.x, entry.y, columns)
+        return slot ? Math.max(max, slot.row) : max
+      }, 0)
+      const rowCount = Math.max(1, Math.ceil(allEntries.length / columns), maxRow + 1)
+      const canvasHeight = Math.max(viewport.height, PAD * 2 + rowCount * CELL_H)
 
       const entries = useMemo(() => {
         const query = search.trim().toLowerCase()
@@ -1089,22 +1083,44 @@ window.__ModuleLoader__.load({
       }, [allEntries, search])
 
       useEffect(() => {
-        if (frame.width < ICON_W + PAD * 2 || frame.height < ICON_H + PAD * 2) return
-        const occupied = []
+        if (viewport.width < ICON_W + PAD * 2) return
+        const gridColumnsNow = Math.max(1, gridColumns(viewport.width))
+        const reflowAll = prevColumns.current !== gridColumnsNow
+        prevColumns.current = gridColumnsNow
+        const ordered = allEntries.slice().sort((left, right) => {
+          const leftSlot = positionSlot(left.x, left.y, gridColumnsNow)
+          const rightSlot = positionSlot(right.x, right.y, gridColumnsNow)
+          const leftIndex = leftSlot ? leftSlot.index : Number.MAX_SAFE_INTEGER
+          const rightIndex = rightSlot ? rightSlot.index : Number.MAX_SAFE_INTEGER
+          return leftIndex - rightIndex || (left.addedAt ?? 0) - (right.addedAt ?? 0) || left.name.localeCompare(right.name)
+        })
+        const used = new Set()
+        const targets = new Map()
+        if (!reflowAll) {
+          for (const entry of ordered) {
+            const slot = positionSlot(entry.x, entry.y, gridColumnsNow)
+            if (!slot || used.has(slot.index)) continue
+            used.add(slot.index)
+            targets.set(entry.key, slot)
+          }
+        }
+        let cursor = 0
+        for (const entry of ordered) {
+          if (targets.has(entry.key)) continue
+          while (used.has(cursor)) cursor += 1
+          const slot = slotPosition(cursor, gridColumnsNow)
+          used.add(cursor)
+          targets.set(entry.key, slot)
+          cursor += 1
+        }
         const updates = []
         for (const entry of allEntries) {
-          if (Number.isFinite(entry.x) && Number.isFinite(entry.y)) {
-            const clamped = clampPosition(entry.x, entry.y, frame)
-            occupied.push({ x: clamped.x, y: clamped.y, w: ICON_W, h: ICON_H })
-            if (clamped.x !== entry.x || clamped.y !== entry.y) updates.push({ kind: entry.kind, id: entry.id, x: clamped.x, y: clamped.y })
-            continue
-          }
-          const position = scatterPosition(frame, occupied)
-          occupied.push({ x: position.x, y: position.y, w: ICON_W, h: ICON_H })
-          updates.push({ kind: entry.kind, id: entry.id, x: position.x, y: position.y })
+          const target = targets.get(entry.key)
+          if (!target) continue
+          if (entry.x !== target.x || entry.y !== target.y) updates.push({ kind: entry.kind, id: entry.id, x: target.x, y: target.y })
         }
         if (updates.length > 0) store.setPositions(updates)
-      }, [frame, allEntries, currentFolder])
+      }, [viewport, allEntries, currentFolder])
 
       const activePath = library.activeTab === 'home' ? null : library.activeTab
       const activeItem = activePath ? library.items[activePath] : null
@@ -1285,72 +1301,107 @@ window.__ModuleLoader__.load({
         } catch {
           /* ignore */
         }
+        const frame = desktopRef.current
+        let startCanvasX = event.clientX
+        let startCanvasY = event.clientY
+        if (frame) {
+          const rect = frame.getBoundingClientRect()
+          startCanvasX = event.clientX - rect.left + frame.scrollLeft
+          startCanvasY = event.clientY - rect.top + frame.scrollTop
+        }
         dragRef.current = {
           kind: entry.kind,
           id: entry.id,
           path: entry.path,
-          startX: event.clientX,
-          startY: event.clientY,
+          startCanvasX,
+          startCanvasY,
           originX: Number.isFinite(entry.x) ? entry.x : PAD,
           originY: Number.isFinite(entry.y) ? entry.y : PAD,
           moved: false,
         }
         setSelected({ kind: entry.kind, key: entry.id })
+        setDropSlot(null)
         setMenu(null)
       }, [])
 
       const onPointerMove = useCallback(
         (event) => {
           const current = dragRef.current
-          if (!current) return
-          const dx = event.clientX - current.startX
-          const dy = event.clientY - current.startY
+          const frame = desktopRef.current
+          if (!current || !frame) return
+          const rect = frame.getBoundingClientRect()
+          const canvasX = event.clientX - rect.left + frame.scrollLeft
+          const canvasY = event.clientY - rect.top + frame.scrollTop
+          const dx = canvasX - current.startCanvasX
+          const dy = canvasY - current.startCanvasY
           if (!current.moved && Math.hypot(dx, dy) < 4) return
           current.moved = true
-          const position = clampPosition(current.originX + dx, current.originY + dy, frame)
+          const position = clampToCanvas(current.originX + dx, current.originY + dy, frame.clientWidth, canvasHeight)
           setDrag({ kind: current.kind, id: current.id, x: position.x, y: position.y })
-          if (current.kind === 'file') {
-            let folderId = null
-            try {
-              for (const holder of document.querySelectorAll('[data-dsd-folder-id]')) {
-                const rect = holder.getBoundingClientRect()
-                if (event.clientX >= rect.left && event.clientX <= rect.right && event.clientY >= rect.top && event.clientY <= rect.bottom) {
-                  folderId = holder.getAttribute('data-dsd-folder-id')
-                  break
-                }
+          setDropSlot(nearestSlot(position.x + ICON_W / 2, position.y + ICON_CENTER_Y, columns, rowCount))
+          let folderId = null
+          try {
+            for (const holder of document.querySelectorAll('[data-dsd-folder-id]')) {
+              if (holder.getAttribute('data-dsd-folder-id') === current.id) continue
+              const rectOfFolder = holder.getBoundingClientRect()
+              if (event.clientX >= rectOfFolder.left && event.clientX <= rectOfFolder.right && event.clientY >= rectOfFolder.top && event.clientY <= rectOfFolder.bottom) {
+                folderId = holder.getAttribute('data-dsd-folder-id')
+                break
               }
-            } catch {
-              folderId = null
             }
-            if (folderId !== dropFolder) setDropFolder(folderId)
+          } catch {
+            folderId = null
           }
+          if (folderId !== dropFolder) setDropFolder(folderId)
         },
-        [frame, dropFolder],
+        [canvasHeight, columns, rowCount, dropFolder],
       )
 
       const onPointerUp = useCallback(
         (event) => {
           const current = dragRef.current
+          const frame = desktopRef.current
           dragRef.current = null
-          if (!current) return
+          setDropSlot(null)
+          if (!current || !frame) {
+            setDrag(null)
+            setDropFolder(null)
+            return
+          }
           if (current.moved) {
-            if (current.kind === 'file' && dropFolder && dropFolder !== currentFolder) {
-              store.move('file', current.id, dropFolder)
+            const rect = frame.getBoundingClientRect()
+            const canvasX = event.clientX - rect.left + frame.scrollLeft
+            const canvasY = event.clientY - rect.top + frame.scrollTop
+            const dx = canvasX - current.startCanvasX
+            const dy = canvasY - current.startCanvasY
+            const position = clampToCanvas(current.originX + dx, current.originY + dy, frame.clientWidth, canvasHeight)
+            const target = nearestSlot(position.x + ICON_W / 2, position.y + ICON_CENTER_Y, columns, rowCount)
+            const forbiddenFolder = current.kind === 'folder' && dropFolder && descendantFolders(library.folders, current.id).has(dropFolder)
+            if (dropFolder && !forbiddenFolder) {
+              store.move(current.kind, current.id, dropFolder)
               showToast(t('toast.moved'))
-            } else if (current.kind === 'folder' && dropFolder && dropFolder !== currentFolder) {
-              if (!descendantFolders(library.folders, current.id).has(dropFolder)) {
-                store.move('folder', current.id, dropFolder)
+            } else if (!forbiddenFolder && target) {
+              const occupant = allEntries.find((entry) => {
+                if (entry.kind === current.kind && entry.id === current.id) return false
+                const slot = positionSlot(entry.x, entry.y, columns)
+                return Boolean(slot && slot.index === target.index)
+              })
+              if (occupant) {
+                store.setPositions([
+                  { kind: current.kind, id: current.id, x: target.x, y: target.y },
+                  { kind: occupant.kind, id: occupant.id, x: current.originX, y: current.originY },
+                ])
+                showToast(t('toast.moved'))
+              } else if (current.originX !== target.x || current.originY !== target.y) {
+                store.setPositions([{ kind: current.kind, id: current.id, x: target.x, y: target.y }])
                 showToast(t('toast.moved'))
               }
-            } else {
-              const position = clampPosition(current.originX + event.clientX - current.startX, current.originY + event.clientY - current.startY, frame)
-              store.setPositions([{ kind: current.kind, id: current.id, x: position.x, y: position.y }])
             }
           }
           setDrag(null)
           setDropFolder(null)
         },
-        [dropFolder, currentFolder, frame, library.folders, showToast],
+        [allEntries, columns, dropFolder, library.folders, rowCount, showToast],
       )
 
       useEffect(() => {
@@ -1641,31 +1692,37 @@ window.__ModuleLoader__.load({
                 onPointerUp,
                 onPointerCancel: onPointerUp,
                 onClick: (event) => {
-                  if (event.target === event.currentTarget) {
+                  const target = event.target
+                  if (target === event.currentTarget || (target && target.classList && target.classList.contains('dsd-desktop-canvas'))) {
                     setSelected(null)
                     setMenu(null)
                   }
                 },
               },
-              entries.map(renderEntry),
-              allEntries.length === 0
-                ? h(
-                    'div',
-                    { className: 'dsd-empty' },
-                    h('div', { className: 'dsd-empty-icon' }, icon('folder', 30)),
-                    h('p', { className: 'dsd-empty-title' }, currentFolder ? t('empty.folderTitle') : t('empty.title')),
-                    h('p', { className: 'dsd-empty-hint' }, currentFolder ? t('empty.folderHint') : t('empty.hint')),
-                    !currentFolder
-                      ? h(
-                          'button',
-                          { className: 'dsd-btn', type: 'button', 'data-primary': true, onClick: openPicker },
-                          icon('plus', 14),
-                          h('span', null, t('action.add')),
-                        )
-                      : null,
-                  )
-                : null,
-              allEntries.length > 0 && entries.length === 0 ? h('div', { className: 'dsd-no-match' }, t('picker.empty')) : null,
+              h(
+                'div',
+                { className: 'dsd-desktop-canvas', style: { height: `${canvasHeight}px` } },
+                drag && dropSlot ? h('div', { className: 'dsd-slot-ghost', style: { left: `${dropSlot.x}px`, top: `${dropSlot.y}px` } }) : null,
+                entries.map(renderEntry),
+                allEntries.length === 0
+                  ? h(
+                      'div',
+                      { className: 'dsd-empty' },
+                      h('div', { className: 'dsd-empty-icon' }, icon('folder', 30)),
+                      h('p', { className: 'dsd-empty-title' }, currentFolder ? t('empty.folderTitle') : t('empty.title')),
+                      h('p', { className: 'dsd-empty-hint' }, currentFolder ? t('empty.folderHint') : t('empty.hint')),
+                      !currentFolder
+                        ? h(
+                            'button',
+                            { className: 'dsd-btn', type: 'button', 'data-primary': true, onClick: openPicker },
+                            icon('plus', 14),
+                            h('span', null, t('action.add')),
+                          )
+                        : null,
+                    )
+                  : null,
+                allEntries.length > 0 && entries.length === 0 ? h('div', { className: 'dsd-no-match' }, t('picker.empty')) : null,
+              ),
             ),
           ),
         )

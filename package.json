@@ -1,0 +1,61 @@
+{
+  "name": "dsh-docdesk",
+  "version": "0.1.0",
+  "description": "A desktop-style library for Markdown documents created in DeepSeek Harness: free icon placement, folders, renaming and instant preview. · DSH 资料区：把生成的 Markdown 文档收进一个可自由拖放、归类、重命名的桌面。",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "README.md",
+    "README.zh.md",
+    "CHANGELOG.md",
+    "docs/**/*",
+    "LICENSE"
+  ],
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "markdown",
+    "documents",
+    "library",
+    "desktop",
+    "materials"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wei238982377/dsh-docdesk.git"
+  },
+  "bugs": {
+    "url": "https://github.com/wei238982377/dsh-docdesk/issues"
+  },
+  "homepage": "https://github.com/wei238982377/dsh-docdesk#readme",
+  "dsh": {
+    "engines": {
+      "dsh": ">=0.2.1-rc.3"
+    },
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-layout"
+      ]
+    }
+  }
+}

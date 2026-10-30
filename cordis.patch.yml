@@ -1,0 +1,7 @@
+# dsh-docdesk bundle patch.
+# The Host half serves /api/dsh-docdesk/* (scan + read Markdown inside the
+# user's workspaces); the Client half adds the "资料区" sidebar entry and its
+# desktop-style panel.
+- insert:
+    - id: dsh-docdesk
+      name: dsh-docdesk

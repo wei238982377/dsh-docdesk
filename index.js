@@ -567,6 +567,9 @@ async function handleResolve(ctx, request, response) {
 
 /* ------------------------------------------------------------------ apply */
 
+export const name = 'dsh-docdesk'
+export const inject = ['webServer', 'workspaceRegistry', 'workingDirectory', 'agents', 'sessionQuery', 'workspaceFiles']
+
 export function apply(ctx) {
   let webServer
   try {

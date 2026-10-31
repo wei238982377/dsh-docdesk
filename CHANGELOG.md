@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.4 — 2026-10-31
+
+Compatibility with the current DSH Host service-injection rules.
+
+- The Host half now declares the services it uses (`webServer`, `workspaceRegistry`, `workingDirectory`, `agents`, `sessionQuery`, `workspaceFiles`), so it loads reliably in newer DSH builds. This fixes the picker's `扫描失败: HTTP 404` after a DSH update, where the routes were never registered because the Web server was not visible at apply time.
+- Existing routes, list/read/resolve behavior, Mermaid asset serving and the client UI are unchanged.
+
 ## 0.2.3 — 2026-10-31
 
 Mermaid diagrams and GFM tables in the reader.

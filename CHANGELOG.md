@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.5 — 2026-10-31
+
+Bulk moves from a marquee selection into folders.
+
+- After marquee-selecting several items, right-click a selected item and pick a destination under **Put N items into**; or drag the selected group onto a folder icon.
+- The whole selection (files and folders) moves together. The selected folder itself and its descendants are never offered as destinations.
+- Folder move actions skip any invalid destination instead of blocking the valid items.
+- Folder badges and the root list refresh immediately; a moved selection is cleared.
+
 ## 0.2.4 — 2026-10-31
 
 Compatibility with the current DSH Host service-injection rules.

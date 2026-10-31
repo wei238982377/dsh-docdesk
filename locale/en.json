@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "Materials",
-    "description": "An add-only Markdown library for DeepSeek Harness: pick documents from your workspaces, place icons on a fixed non-overlapping desktop grid, right-drag a marquee to select and move groups, render GFM tables plus Mermaid and chart code blocks, open documents full-screen with browser-style tabs, and collapse the sidebar from a middle-edge handle."
+    "description": "An add-only Markdown library for DeepSeek Harness: pick documents from your workspaces, place icons on a fixed non-overlapping desktop grid, right-drag a marquee to select and move groups, put multi-selections into folders, render GFM tables plus Mermaid and chart code blocks, open documents full-screen with browser-style tabs, and collapse the sidebar from a middle-edge handle."
   }
 }

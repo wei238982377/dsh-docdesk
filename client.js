@@ -89,6 +89,8 @@ window.__ModuleLoader__.load({
       'toast.folderCreated': '已新建文件夹',
       'toast.folderDeleted': '已删除文件夹',
       'toast.moved': '已移动',
+      'toast.movedMany': '已移动 {count} 项',
+      'toast.noMove': '没有可移动的项',
       'context.addToLibrary': '放入资料区',
       'context.resolving': '正在加入…',
       'context.added': '已在资料区',
@@ -97,6 +99,7 @@ window.__ModuleLoader__.load({
       'menu.moveHint': '当前没有其他文件夹',
       'menu.root': '资料区（根目录）',
       'menu.separator': '移动到',
+      'menu.moveSelected': '把 {count} 项放入文件夹',
       'confirm.deleteTitle': '删除文件夹？',
       'confirm.deleteWithFiles': '文件夹里的 {count} 个文档会移回上一级，磁盘上的文件不会被删除。',
       'confirm.deleteEmpty': '这个文件夹是空的，删除后无法恢复。',
@@ -179,6 +182,8 @@ window.__ModuleLoader__.load({
       'toast.folderCreated': 'Folder created',
       'toast.folderDeleted': 'Folder deleted',
       'toast.moved': 'Moved',
+      'toast.movedMany': 'Moved {count} items',
+      'toast.noMove': 'Nothing could be moved',
       'context.addToLibrary': 'Add to library',
       'context.resolving': 'Adding…',
       'context.added': 'In the library',
@@ -187,6 +192,7 @@ window.__ModuleLoader__.load({
       'menu.moveHint': 'No other folders yet',
       'menu.root': 'Materials (root)',
       'menu.separator': 'Move to',
+      'menu.moveSelected': 'Put {count} items into',
       'confirm.deleteTitle': 'Delete folder?',
       'confirm.deleteWithFiles': '{count} document(s) move back to the parent folder. Files on disk are not deleted.',
       'confirm.deleteEmpty': 'This folder is empty. Deleting it cannot be undone.',
@@ -1877,6 +1883,27 @@ window.__ModuleLoader__.load({
         })
       }, [allEntries, showToast])
 
+      const moveSelection = useCallback(
+        (targetFolderId) => {
+          const chosen = allEntries.filter((entry) => selectedRef.current.has(entryKey(entry)))
+          if (chosen.length === 0) return 0
+          let moved = 0
+          for (const entry of chosen) {
+            if (entry.kind === 'folder') {
+              if (targetFolderId === entry.id) continue
+              if (targetFolderId && descendantFolders(library.folders, entry.id).has(targetFolderId)) continue
+            }
+            store.move(entry.kind, entry.id, targetFolderId)
+            moved += 1
+          }
+          setSelected(new Set())
+          setMenu(null)
+          showToast(moved > 0 ? t('toast.movedMany', { count: moved }) : t('toast.noMove'))
+          return moved
+        },
+        [allEntries, library.folders, showToast],
+      )
+
       const onPointerDown = useCallback(
         (event, entry) => {
           if (event.button !== 0 && event.pointerType === 'mouse') return
@@ -2004,24 +2031,22 @@ window.__ModuleLoader__.load({
           const anchor = group.find((item) => item.key === current.anchorKey) || group[0]
           const anchorPos = items[anchor.key]
           setDropSlot(nearestSlot(anchorPos.x + ICON_W / 2, anchorPos.y + ICON_CENTER_Y, columns, targetRows))
-          if (group.length === 1) {
-            let folderId = null
-            try {
-              for (const holder of document.querySelectorAll('[data-dsd-folder-id]')) {
-                if (holder.getAttribute('data-dsd-folder-id') === anchor.id) continue
-                const rectOfFolder = holder.getBoundingClientRect()
-                if (event.clientX >= rectOfFolder.left && event.clientX <= rectOfFolder.right && event.clientY >= rectOfFolder.top && event.clientY <= rectOfFolder.bottom) {
-                  folderId = holder.getAttribute('data-dsd-folder-id')
-                  break
-                }
+          const selectedFolderIds = new Set(group.filter((item) => item.kind === 'folder').map((item) => item.id))
+          let folderId = null
+          try {
+            for (const holder of document.querySelectorAll('[data-dsd-folder-id]')) {
+              const holderId = holder.getAttribute('data-dsd-folder-id')
+              if (!holderId || selectedFolderIds.has(holderId)) continue
+              const rectOfFolder = holder.getBoundingClientRect()
+              if (event.clientX >= rectOfFolder.left && event.clientX <= rectOfFolder.right && event.clientY >= rectOfFolder.top && event.clientY <= rectOfFolder.bottom) {
+                folderId = holderId
+                break
               }
-            } catch {
-              folderId = null
             }
-            if (folderId !== dropFolder) setDropFolder(folderId)
-          } else if (dropFolder) {
-            setDropFolder(null)
+          } catch {
+            folderId = null
           }
+          if (folderId !== dropFolder) setDropFolder(folderId)
         },
         [canvasHeight, columns, targetRows, dropFolder, entries],
       )
@@ -2092,6 +2117,11 @@ window.__ModuleLoader__.load({
                   showToast(t('toast.moved'))
                 }
               }
+            } else if (
+              dropFolder &&
+              !group.some((item) => item.kind === 'folder' && (item.id === dropFolder || descendantFolders(library.folders, item.id).has(dropFolder)))
+            ) {
+              moveSelection(dropFolder)
             } else {
               const anchor = group.find((item) => item.key === current.anchorKey) || group[0]
               const anchorPos = { x: anchor.originX + clampedDx, y: anchor.originY + clampedDy }
@@ -2120,7 +2150,7 @@ window.__ModuleLoader__.load({
           setDrag(null)
           setDropFolder(null)
         },
-        [allEntries, canvasHeight, columns, dropFolder, library.folders, targetRows, showToast],
+        [allEntries, canvasHeight, columns, dropFolder, library.folders, targetRows, showToast, moveSelection],
       )
 
       useEffect(() => {
@@ -2180,6 +2210,24 @@ window.__ModuleLoader__.load({
         }
         return result
       }, [contextEntry, library.folders, currentFolder])
+
+      const bulkMoveFolders = useMemo(() => {
+        if (!menuBulk) return []
+        const blocked = new Set()
+        for (const entry of selectedEntries) {
+          if (entry.kind !== 'folder') continue
+          blocked.add(entry.id)
+          for (const descendant of descendantFolders(library.folders, entry.id)) blocked.add(descendant)
+        }
+        const result = []
+        if (currentFolder) result.push({ id: null, name: t('menu.root') })
+        for (const folder of Object.values(library.folders).sort((left, right) => left.name.localeCompare(right.name))) {
+          if (folder.id === currentFolder) continue
+          if (blocked.has(folder.id)) continue
+          result.push({ id: folder.id, name: folder.name })
+        }
+        return result
+      }, [menuBulk, selectedEntries, library.folders, currentFolder])
 
       const pickerRows = useMemo(() => {
         const query = picker.query.trim().toLowerCase()
@@ -2660,6 +2708,24 @@ window.__ModuleLoader__.load({
               'div',
               { className: 'dsd-menu', style: { left: `${menu.x}px`, top: `${menu.y}px` }, role: 'menu' },
               h('div', { className: 'dsd-menu-title' }, t('selection.count', { count: selectedEntries.length })),
+              h('div', { className: 'dsd-menu-heading' }, t('menu.moveSelected', { count: selectedEntries.length })),
+              bulkMoveFolders.length === 0
+                ? h('div', { className: 'dsd-menu-hint' }, t('menu.moveHint'))
+                : bulkMoveFolders.map((folder) =>
+                    h(
+                      'button',
+                      {
+                        key: folder.id || 'root',
+                        className: 'dsd-menu-item',
+                        type: 'button',
+                        role: 'menuitem',
+                        onClick: () => moveSelection(folder.id),
+                      },
+                      icon('folder', 14),
+                      h('span', { style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, folder.name),
+                    ),
+                  ),
+              h('div', { className: 'dsd-menu-sep' }),
               h(
                 'button',
                 { className: 'dsd-menu-item', type: 'button', role: 'menuitem', 'data-danger': true, onClick: () => deleteSelection() },

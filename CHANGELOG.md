@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.7 — 2026-10-31
+
+- Moved the floating **Exit immersive** control left so it no longer overlaps the tab bar's Add files action or the right-edge scrollbar.
+
 ## 0.2.6 — 2026-10-31
 
 Immersive full-screen reading mode.

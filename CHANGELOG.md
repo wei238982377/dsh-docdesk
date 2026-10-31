@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.6 — 2026-10-31
+
+Immersive full-screen reading mode.
+
+- A new expand button in the document path bar toggles immersive mode; `F` enters/exits and `Esc` exits. A floating **Exit immersive** button stays visible while reading.
+- The panel becomes a fixed `100vw × 100vh` layer at `z-index: 9999`, requests native fullscreen when the platform allows it, and falls back cleanly when it does not.
+- The official host `layout.toggleSidebar()` collapses the sidebar on entry and is toggled again after leaving native fullscreen, restoring the user's sidebar state. The immersive layer covers the sidebar rail either way.
+- Page scroll is locked while immersive; the previous `body`/`html` overflow and the panel geometry are restored on exit. Native fullscreen exit (for example via the browser's Esc) is synchronized with the plugin state.
+- Closing the document or leaving the panel restores scroll locks and the host sidebar through the same cleanup path.
+
 ## 0.2.5 — 2026-10-31
 
 Bulk moves from a marquee selection into folders.

@@ -64,6 +64,9 @@ window.__ModuleLoader__.load({
       'doc.failed': '读取失败：{reason}',
       'doc.empty': '这个文件是空的',
       'doc.truncated': '文件较大，仅显示前 2 MB',
+      'immersive.enter': '沉浸阅读 (F)',
+      'immersive.exit': '退出沉浸阅读 (Esc)',
+      'immersive.exitLabel': '退出沉浸',
       'chart.invalid': '图表数据无法解析，已显示原始代码。',
       'chart.source': '查看数据',
       'chart.empty': '图表没有可显示的数据',
@@ -157,6 +160,9 @@ window.__ModuleLoader__.load({
       'doc.failed': 'Read failed: {reason}',
       'doc.empty': 'This file is empty',
       'doc.truncated': 'Large file: showing the first 2 MB',
+      'immersive.enter': 'Immersive reading (F)',
+      'immersive.exit': 'Exit immersive reading (Esc)',
+      'immersive.exitLabel': 'Exit immersive',
       'chart.invalid': 'Chart data could not be parsed; the raw code is shown below.',
       'chart.source': 'View data',
       'chart.empty': 'The chart has no data to show',
@@ -673,6 +679,10 @@ window.__ModuleLoader__.load({
             h('path', { key: 'c', d: 'M9.4 14.2h5.2' }),
             h('path', { key: 'd', d: 'M12 11.6v5.2' }),
           ])
+        case 'expand':
+          return paths(['M9 4H4v5', 'M15 4h5v5', 'M20 15v5h-5', 'M9 20H4v-5'])
+        case 'collapse':
+          return paths(['M9 4v5H4', 'M15 4v5h5', 'M20 15h-5v5', 'M4 15h5v5'])
         default:
           return paths(['M12 5v14', 'M5 12h14'])
       }
@@ -1244,6 +1254,9 @@ window.__ModuleLoader__.load({
 
     const CSS = `
 .dsd-panel { position:relative; display:flex; flex-direction:column; height:100%; min-height:0; background:var(--dsw-alias-bg-base,#fff); color:var(--dsw-alias-label-primary,#1b1b1f); font-family:inherit; }
+.dsd-panel[data-immersive="true"] { position:fixed; inset:0; width:100vw; height:100vh; max-width:none; min-width:0; margin:0; z-index:9999; border-radius:0; box-shadow:none; }
+.dsd-panel[data-immersive="true"] .dsd-doc-inner { max-width:980px; }
+body.dsd-immersive { overflow:hidden !important; }
 .dsd-tabbar { flex:none; display:flex; align-items:flex-end; gap:4px; height:38px; padding:4px 8px 0; background:var(--dsw-alias-bg-layer-1,#f6f6f8); border-bottom:1px solid var(--dsw-alias-border-l1,#e4e4ea); }
 .dsd-tabs { display:flex; align-items:flex-end; gap:2px; flex:1; min-width:0; overflow-x:auto; overflow-y:hidden; scrollbar-width:thin; }
 .dsd-tab { display:inline-flex; align-items:center; gap:6px; height:30px; max-width:210px; padding:0 6px 0 9px; border:1px solid transparent; border-bottom:none; border-radius:8px 8px 0 0; background:transparent; color:var(--dsw-alias-label-secondary,#6b6b76); font:inherit; font-size:12px; cursor:pointer; white-space:nowrap; flex:none; }
@@ -1261,6 +1274,7 @@ window.__ModuleLoader__.load({
 .dsd-btn[data-primary]:hover:not(:disabled) { filter:brightness(1.04); background:var(--dsw-alias-button-primary-fill,var(--dsw-alias-brand-primary,#f9fafb)); }
 .dsd-btn[data-quiet] { border-color:transparent; color:var(--dsw-alias-label-secondary,#6b6b76); }
 .dsd-btn[data-quiet]:hover:not(:disabled) { color:var(--dsw-alias-label-primary,#1b1b1f); }
+.dsd-btn[data-active="true"] { color:var(--dsw-alias-state-business-primary,#2f6fed); border-color:color-mix(in srgb, var(--dsw-alias-state-business-primary,#2f6fed) 38%, transparent); background:color-mix(in srgb, var(--dsw-alias-state-business-primary,#2f6fed) 10%, transparent); }
 .dsd-btn[data-danger] { background:var(--dsw-alias-state-error-primary,#c62f45); border-color:transparent; color:#fff; font-weight:600; }
 .dsd-btn[data-danger]:hover:not(:disabled) { background:var(--dsw-alias-state-error-primary,#c62f45); filter:brightness(1.06); }
 .dsd-home { flex:1; min-height:0; display:flex; flex-direction:column; }
@@ -1388,6 +1402,9 @@ window.__ModuleLoader__.load({
 .dsd-sidebar-toggle { position:fixed; left:0; top:50%; transform:translateY(-50%); z-index:1200; display:flex; align-items:center; justify-content:center; width:15px; height:62px; padding:0; border:1px solid var(--dsw-alias-border-l2,#d0d0d8); border-left:none; border-radius:0 9px 9px 0; background:var(--dsw-alias-bg-layer-2,#fff); color:var(--dsw-alias-label-secondary,#6b6b76); cursor:pointer; pointer-events:auto; opacity:.72; transition:width .15s ease, opacity .15s ease; }
 .dsd-sidebar-toggle:hover { width:22px; opacity:1; color:var(--dsw-alias-label-primary,#1b1b1f); }
 .dsd-sidebar-toggle:focus-visible { outline:2px solid var(--dsw-alias-state-business-primary,#2f6fed); outline-offset:1px; }
+.dsd-immersive-exit { position:fixed; top:12px; right:14px; z-index:60; display:inline-flex; align-items:center; gap:6px; height:30px; padding:0 10px; border-radius:999px; border:1px solid var(--dsw-alias-border-l2,#d0d0d8); background:var(--dsw-alias-bg-layer-2,#fff); color:var(--dsw-alias-label-primary,#1b1b1f); font:inherit; font-size:11.5px; cursor:pointer; box-shadow:0 8px 24px rgba(0,0,0,.18); }
+.dsd-immersive-exit:hover { background:var(--dsw-alias-bg-layer-1,#f6f6f8); border-color:var(--dsw-alias-border-l1,#e4e4ea); }
+.dsd-immersive-exit:focus-visible { outline:2px solid var(--dsw-alias-state-business-primary,#2f6fed); outline-offset:1px; }
 .dsd-file-action { display:inline-flex; align-items:center; gap:4px; height:24px; padding:0 8px; border-radius:6px; border:1px solid var(--dsw-alias-border-l2,#d0d0d8); background:transparent; color:var(--dsw-alias-label-primary,#1b1b1f); font:inherit; font-size:11.5px; cursor:pointer; white-space:nowrap; }
 .dsd-file-action:hover:not(:disabled) { background:color-mix(in srgb, var(--dsw-alias-label-primary,#1b1b1f) 8%, transparent); }
 .dsd-file-action:disabled { opacity:.55; cursor:default; }
@@ -1532,11 +1549,12 @@ window.__ModuleLoader__.load({
       )
     }
 
-    function PanelPage() {
+    function PanelPage({ toggleHostSidebar }) {
       const library = useLibrary()
       const [currentFolder, setCurrentFolder] = useState(null)
       const [viewport, setViewport] = useState({ width: 0, height: 0 })
       const [selected, setSelected] = useState(() => new Set())
+      const [immersive, setImmersive] = useState(false)
       const [menu, setMenu] = useState(null)
       const [renaming, setRenaming] = useState(null)
       const [drag, setDrag] = useState(null)
@@ -1556,6 +1574,10 @@ window.__ModuleLoader__.load({
       const marqueeRef = useRef(null)
       const selectedRef = useRef(selected)
       selectedRef.current = selected
+      const immersiveRef = useRef(false)
+      immersiveRef.current = immersive
+      const scrollLockRef = useRef(null)
+      const sidebarToggledRef = useRef(false)
       const renameRef = useRef(null)
       const toastTimer = useRef(0)
       const pickerToken = useRef(0)
@@ -1681,6 +1703,115 @@ window.__ModuleLoader__.load({
 
       const activePath = library.activeTab === 'home' ? null : library.activeTab
       const activeItem = activePath ? library.items[activePath] : null
+
+      const restoreImmersive = useCallback(() => {
+        const saved = scrollLockRef.current
+        if (saved) {
+          document.body.style.overflow = saved.body
+          document.documentElement.style.overflow = saved.html
+          scrollLockRef.current = null
+        }
+        document.body.classList.remove('dsd-immersive')
+      }, [])
+
+      const restoreSidebar = useCallback(() => {
+        if (!sidebarToggledRef.current) return
+        sidebarToggledRef.current = false
+        const invoke = () => {
+          try {
+            toggleHostSidebar?.()
+          } catch {
+            /* layout may be gone */
+          }
+        }
+        window.setTimeout(invoke, 50)
+      }, [toggleHostSidebar])
+
+      const exitImmersive = useCallback(() => {
+        if (!immersiveRef.current) return
+        immersiveRef.current = false
+        setImmersive(false)
+        restoreImmersive()
+        if (document.fullscreenElement === panelRef.current) {
+          try {
+            const promise = document.exitFullscreen?.()
+            if (promise && typeof promise.then === 'function') promise.then(restoreSidebar, restoreSidebar)
+            else restoreSidebar()
+          } catch {
+            restoreSidebar()
+          }
+        } else {
+          restoreSidebar()
+        }
+      }, [restoreImmersive, restoreSidebar])
+
+      const enterImmersive = useCallback(() => {
+        if (immersiveRef.current || !activePath) return
+        immersiveRef.current = true
+        setImmersive(true)
+        if (!scrollLockRef.current) {
+          scrollLockRef.current = {
+            body: document.body.style.overflow,
+            html: document.documentElement.style.overflow,
+          }
+        }
+        document.body.style.overflow = 'hidden'
+        document.documentElement.style.overflow = 'hidden'
+        document.body.classList.add('dsd-immersive')
+        if (typeof toggleHostSidebar === 'function') {
+          sidebarToggledRef.current = true
+          try {
+            toggleHostSidebar()
+          } catch {
+            /* layout may be unmounted */
+          }
+        }
+        const element = panelRef.current
+        if (element && !document.fullscreenElement && typeof element.requestFullscreen === 'function' && document.fullscreenEnabled !== false) {
+          try {
+            const promise = element.requestFullscreen({ navigationUI: 'hide' })
+            if (promise && typeof promise.catch === 'function') promise.catch(() => {})
+          } catch {
+            /* CSS immersive mode is the fallback */
+          }
+        }
+      }, [activePath, toggleHostSidebar])
+
+      const toggleImmersive = useCallback(() => {
+        if (immersiveRef.current) exitImmersive()
+        else enterImmersive()
+      }, [enterImmersive, exitImmersive])
+
+      useEffect(() => {
+        const onChange = () => {
+          if (!document.fullscreenElement && immersiveRef.current) exitImmersive()
+        }
+        document.addEventListener('fullscreenchange', onChange)
+        return () => document.removeEventListener('fullscreenchange', onChange)
+      }, [exitImmersive])
+
+      useEffect(() => {
+        if (immersive && !activePath) exitImmersive()
+      }, [activePath, immersive, exitImmersive])
+
+      useEffect(
+        () => () => {
+          restoreImmersive()
+          const finish = () => restoreSidebar()
+          if (document.fullscreenElement === panelRef.current) {
+            try {
+              const promise = document.exitFullscreen?.()
+              if (promise && typeof promise.then === 'function') promise.then(finish, finish)
+              else finish()
+            } catch {
+              finish()
+            }
+          } else {
+            finish()
+          }
+        },
+        [restoreImmersive, restoreSidebar],
+      )
 
       useEffect(() => {
         if (!activePath) {
@@ -2166,6 +2297,13 @@ window.__ModuleLoader__.load({
 
       useEffect(() => {
         const onKey = (event) => {
+          const target = event.target
+          const editing = Boolean(target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable))
+          if ((event.key === 'f' || event.key === 'F') && !event.repeat && !editing && activePath && !picker.open && !renaming && !confirmState && !menu && !event.ctrlKey && !event.metaKey && !event.altKey) {
+            event.preventDefault()
+            toggleImmersive()
+            return
+          }
           if (event.key === 'Escape') {
             if (menu) return setMenu(null)
             if (renaming) {
@@ -2174,13 +2312,16 @@ window.__ModuleLoader__.load({
             }
             if (confirmState) return setConfirmState(null)
             if (picker.open) return closePicker()
+            if (immersive) {
+              event.preventDefault()
+              return exitImmersive()
+            }
             if (selected.size > 0) return setSelected(new Set())
             return
           }
           if ((event.key === 'Delete' || event.key === 'Backspace') && library.activeTab === 'home') {
             if (picker.open || renaming || confirmState) return
-            const target = event.target
-            if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return
+            if (editing) return
             if (selectedRef.current.size === 0) return
             event.preventDefault()
             deleteSelection()
@@ -2188,7 +2329,7 @@ window.__ModuleLoader__.load({
         }
         document.addEventListener('keydown', onKey)
         return () => document.removeEventListener('keydown', onKey)
-      }, [menu, renaming, confirmState, picker.open, selected, library.activeTab, deleteSelection, closePicker])
+      }, [menu, renaming, confirmState, picker.open, selected, library.activeTab, deleteSelection, closePicker, activePath, immersive, toggleImmersive, exitImmersive])
 
       const chain = useMemo(() => folderChain(library.folders, currentFolder), [library.folders, currentFolder])
       const contextEntry = useMemo(() => {
@@ -2543,6 +2684,20 @@ window.__ModuleLoader__.load({
                   { className: 'dsd-btn', type: 'button', 'data-quiet': true, title: t('action.refreshContent'), 'aria-label': t('action.refreshContent'), onClick: reloadDoc },
                   icon('refresh', 14),
                 ),
+                h(
+                  'button',
+                  {
+                    className: 'dsd-btn',
+                    type: 'button',
+                    'data-quiet': true,
+                    'data-active': immersive ? 'true' : 'false',
+                    title: immersive ? t('immersive.exit') : t('immersive.enter'),
+                    'aria-label': immersive ? t('immersive.exit') : t('immersive.enter'),
+                    'aria-pressed': immersive,
+                    onClick: toggleImmersive,
+                  },
+                  icon(immersive ? 'collapse' : 'expand', 14),
+                ),
               ),
               doc.status === 'loading' ? h('div', { className: 'dsd-doc-loading' }, t('doc.loading')) : null,
               doc.status === 'error'
@@ -2685,7 +2840,7 @@ window.__ModuleLoader__.load({
 
       return h(
         'div',
-        { className: 'dsd-panel', ref: panelRef },
+        { className: 'dsd-panel', ref: panelRef, 'data-immersive': immersive ? 'true' : 'false' },
         h(
           'div',
           { className: 'dsd-tabbar' },
@@ -2702,6 +2857,20 @@ window.__ModuleLoader__.load({
           ),
         ),
         activePath && activeItem ? renderDoc() : renderHome(),
+        immersive
+          ? h(
+              'button',
+              {
+                className: 'dsd-immersive-exit',
+                type: 'button',
+                title: t('immersive.exit'),
+                'aria-label': t('immersive.exit'),
+                onClick: exitImmersive,
+              },
+              icon('collapse', 14),
+              h('span', null, t('immersive.exitLabel')),
+            )
+          : null,
         picker.open ? renderPicker() : null,
         menuBulk
           ? h(
@@ -2880,6 +3049,7 @@ window.__ModuleLoader__.load({
           }
         }
         const SidebarToggleEntry = () => h(SidebarToggle, { toggleSidebar })
+        const PanelPageEntry = () => h(PanelPage, { toggleHostSidebar: toggleSidebar })
 
         disposers.push(
           ctx.slots.inject('sidebar.panellist', () =>
@@ -2901,7 +3071,7 @@ window.__ModuleLoader__.load({
                 name: 'main',
                 key: PANEL_ID,
               },
-              PanelPage,
+              PanelPageEntry,
             ),
           ),
         )

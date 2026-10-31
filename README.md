@@ -25,6 +25,7 @@ The plugin never moves, renames or deletes anything on disk.
 - **Virtual folders.** Create folders and drag documents onto a folder icon. Folder badges show how many items are inside. Folders can be nested.
 - **Rename anything.** Use the context menu or <kbd>F2</kbd>. The label in the library changes; the file on disk does not.
 - **Full-screen reading with tabs.** Double-click a document to open it full-screen. The top row is a browser-style tab strip with a Home tab and one tab per open document; tabs can be switched and closed.
+- **Immersive reading.** Click the expand icon in the document path bar (or press <kbd>F</kbd>) to turn the panel into a fixed 100vw × 100vh layer at z-index 9999. The host sidebar is collapsed through `layout.toggleSidebar()` and native Fullscreen is requested when available; a native fullscreen exit is synchronized with the plugin state. Press <kbd>Esc</kbd> or the floating **Exit immersive** button to leave; the sidebar state, scroll locks and panel geometry are restored.
 - **Sidebar handle.** A slim handle at the middle of the left edge collapses the sidebar and stays available to bring it back. It uses the host's own sidebar toggle, so it collapses to the host's icon rail.
 - **Search and remove.** Filter the current page by label or path; remove an entry from the library without touching the file.
 - **Bilingual UI and theme-aware styling.** Chinese and English follow the Harness locale; colors come from the host theme tokens.
@@ -56,6 +57,7 @@ After installation, refresh the browser tab once so the client plugin loads.
 - **New folder** creates a folder in the current page. Drag a document onto a folder icon to file it; double-click the folder to open it.
 - Right-click an icon for **Open, Rename, Copy path, Move to folder** and **Remove from library**. Folders also offer **Delete folder**, which moves their documents back to the parent instead of deleting files.
 - Double-click a document to open it full-screen. Use the **资料区** tab to return to the desktop, click another tab to switch documents, and use the × on a tab to close it.
+- In a document, click the expand icon in the path bar (or press <kbd>F</kbd>) for immersive reading. Press <kbd>Esc</kbd> or the floating **Exit immersive** button to return; the host sidebar and layout snap back.
 - The middle-left handle toggles the sidebar. The host collapses it to its icon rail; click the handle again to restore it.
 
 ![Full-screen document with tabs](docs/screenshots/document.png)

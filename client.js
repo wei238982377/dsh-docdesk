@@ -67,6 +67,7 @@ window.__ModuleLoader__.load({
       'immersive.enter': '沉浸阅读 (F)',
       'immersive.exit': '退出沉浸阅读 (Esc)',
       'immersive.exitLabel': '退出沉浸',
+      'immersive.short': '沉浸',
       'chart.invalid': '图表数据无法解析，已显示原始代码。',
       'chart.source': '查看数据',
       'chart.empty': '图表没有可显示的数据',
@@ -163,6 +164,7 @@ window.__ModuleLoader__.load({
       'immersive.enter': 'Immersive reading (F)',
       'immersive.exit': 'Exit immersive reading (Esc)',
       'immersive.exitLabel': 'Exit immersive',
+      'immersive.short': 'Immersive',
       'chart.invalid': 'Chart data could not be parsed; the raw code is shown below.',
       'chart.source': 'View data',
       'chart.empty': 'The chart has no data to show',
@@ -1746,7 +1748,9 @@ body.dsd-immersive { overflow:hidden !important; }
       }, [restoreImmersive, restoreSidebar])
 
       const enterImmersive = useCallback(() => {
-        if (immersiveRef.current || !activePath) return
+        if (immersiveRef.current) return
+        const element = panelRef.current
+        if (!element || element.getClientRects().length === 0) return
         immersiveRef.current = true
         setImmersive(true)
         if (!scrollLockRef.current) {
@@ -1766,7 +1770,6 @@ body.dsd-immersive { overflow:hidden !important; }
             /* layout may be unmounted */
           }
         }
-        const element = panelRef.current
         if (element && !document.fullscreenElement && typeof element.requestFullscreen === 'function' && document.fullscreenEnabled !== false) {
           try {
             const promise = element.requestFullscreen({ navigationUI: 'hide' })
@@ -1775,7 +1778,7 @@ body.dsd-immersive { overflow:hidden !important; }
             /* CSS immersive mode is the fallback */
           }
         }
-      }, [activePath, toggleHostSidebar])
+      }, [toggleHostSidebar])
 
       const toggleImmersive = useCallback(() => {
         if (immersiveRef.current) exitImmersive()
@@ -1789,10 +1792,6 @@ body.dsd-immersive { overflow:hidden !important; }
         document.addEventListener('fullscreenchange', onChange)
         return () => document.removeEventListener('fullscreenchange', onChange)
       }, [exitImmersive])
-
-      useEffect(() => {
-        if (immersive && !activePath) exitImmersive()
-      }, [activePath, immersive, exitImmersive])
 
       useEffect(
         () => () => {
@@ -2299,7 +2298,9 @@ body.dsd-immersive { overflow:hidden !important; }
         const onKey = (event) => {
           const target = event.target
           const editing = Boolean(target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable))
-          if ((event.key === 'f' || event.key === 'F') && !event.repeat && !editing && activePath && !picker.open && !renaming && !confirmState && !menu && !event.ctrlKey && !event.metaKey && !event.altKey) {
+          const panel = panelRef.current
+          const panelVisible = Boolean(panel && panel.isConnected && panel.getClientRects().length > 0)
+          if ((event.key === 'f' || event.key === 'F') && !event.repeat && !editing && panelVisible && !picker.open && !renaming && !confirmState && !menu && !event.ctrlKey && !event.metaKey && !event.altKey) {
             event.preventDefault()
             toggleImmersive()
             return
@@ -2329,7 +2330,7 @@ body.dsd-immersive { overflow:hidden !important; }
         }
         document.addEventListener('keydown', onKey)
         return () => document.removeEventListener('keydown', onKey)
-      }, [menu, renaming, confirmState, picker.open, selected, library.activeTab, deleteSelection, closePicker, activePath, immersive, toggleImmersive, exitImmersive])
+      }, [menu, renaming, confirmState, picker.open, selected, library.activeTab, deleteSelection, closePicker, immersive, toggleImmersive, exitImmersive])
 
       const chain = useMemo(() => folderChain(library.folders, currentFolder), [library.folders, currentFolder])
       const contextEntry = useMemo(() => {
@@ -2606,6 +2607,21 @@ body.dsd-immersive { overflow:hidden !important; }
               { className: 'dsd-btn', type: 'button', onClick: createFolder, title: t('action.newFolder') },
               icon('folder-plus', 14),
               h('span', null, t('action.newFolder')),
+            ),
+            h(
+              'button',
+              {
+                className: 'dsd-btn',
+                type: 'button',
+                'data-quiet': true,
+                'data-active': immersive ? 'true' : 'false',
+                title: immersive ? t('immersive.exit') : t('immersive.enter'),
+                'aria-label': immersive ? t('immersive.exit') : t('immersive.enter'),
+                'aria-pressed': immersive,
+                onClick: toggleImmersive,
+              },
+              icon(immersive ? 'collapse' : 'expand', 14),
+              h('span', null, t('immersive.short')),
             ),
           ),
           h(

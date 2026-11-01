@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.8 — 2026-11-01
+
+- Immersive mode is now available from the library home page, not only from an open document. The home toolbar has a **沉浸 / Immersive** button.
+- `F` toggles immersive mode on both the home page and the reader; `Esc` and the floating exit button still leave it.
+- Switching from an immersive document to the Home tab keeps immersive mode active, so the library desktop stays full-bleed.
+- The enter guard now checks that the plugin panel is visible instead of requiring an open document.
+
 ## 0.2.7 — 2026-10-31
 
 - Moved the floating **Exit immersive** control left so it no longer overlaps the tab bar's Add files action or the right-edge scrollbar.
